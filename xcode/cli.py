@@ -126,7 +126,6 @@ def main(
             
             # Build graph first if needed
             if config.build_graph:
-                from xcode.orchestrator import XCodeOrchestrator
                 orchestrator = XCodeOrchestrator(config, console)
                 orchestrator._ensure_knowledge_graph()
             
