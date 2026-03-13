@@ -1,19 +1,75 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
-name = "xcode"
+name = "xcode-cli"
 version = "0.1.0"
-description = "CLI tool (like Claude Code) to run coding tasks with xgraph knowledge graph and la-factoria agents; supports local LLMs."
+description = "CLI tool for running AI agents with codebase knowledge graphs"
 readme = "README.md"
-requires-python = ">=3.11"
-dependencies = [
-    "xgraph>=0.1.0",
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "xCode Team"}
+]
+keywords = ["ai", "agent", "coding", "cli", "knowledge-graph", "neo4j"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Code Generators",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
 ]
 
-[build-system]
-requires = ["setuptools>=61.0"]
-build-backend = "setuptools.build_meta"
+dependencies = [
+    "click>=8.1.0",
+    "rich>=13.0.0",
+    "openai>=1.0.0",
+    "python-dotenv>=1.0.0",
+    "pydantic>=2.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+]
 
 [project.scripts]
 xcode = "xcode.cli:main"
 
+[project.urls]
+Homepage = "https://github.com/yourusername/xcode"
+Repository = "https://github.com/yourusername/xcode"
+Issues = "https://github.com/yourusername/xcode/issues"
+
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["."]
+include = ["xcode*"]
+
+[tool.black]
+line-length = 100
+target-version = ["py310", "py311", "py312"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+select = ["E", "F", "I", "N", "W", "UP"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --cov=xcode --cov-report=term-missing"
