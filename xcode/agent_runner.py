@@ -12,6 +12,9 @@ from rich.live import Live
 from rich.panel import Panel
 from rich.text import Text
 from rich.status import Status
+from rich.syntax import Syntax
+from rich.tree import Tree
+from rich.table import Table
 
 from xcode.config import XCodeConfig
 from xcode.result import XCodeResult
@@ -28,6 +31,7 @@ class AgentRunner:
         self.current_iteration = 0
         self.lf_base_url = "http://localhost:8000"
         self.agent_name = "xcode_coding_agent"
+        self.tool_call_counter = 0  # Track tool calls for better display
 
     def run(self) -> XCodeResult:
         """
@@ -75,6 +79,7 @@ class AgentRunner:
         session_id = None
         final_status = "unknown"
         execution_time_ms = 0
+        tool_calls = []  # Track all tool calls for summary
         
         try:
             self.console.print(f"\n[bold cyan]🤖 Connecting to la-factoria agent...[/bold cyan]")
@@ -99,6 +104,14 @@ class AgentRunner:
                             event_data = line[6:]  # Remove "data: " prefix
                             try:
                                 event = json.loads(event_data)
+                                
+                                # Track tool calls for summary
+                                if event.get("type") == "tool_call":
+                                    tool_calls.append({
+                                        "tool": event.get("tool"),
+                                        "args": event.get("args", {}),
+                                    })
+                                
                                 result = self._handle_event(event, logs)
                                 
                                 # Extract session info from events
@@ -119,6 +132,10 @@ class AgentRunner:
             self.console.print(f"Execution time: {execution_time_ms / 1000:.2f}s")
             if session_id:
                 self.console.print(f"Session ID: {session_id}")
+            
+            # Show tool call summary
+            if tool_calls and self.config.verbose:
+                self._show_tool_summary(tool_calls)
             
             return XCodeResult(
                 success=success,
@@ -183,12 +200,18 @@ Use the neo4j_query tool to understand code relationships, find dependencies, an
 - write_file: Modify files in the repository
 - run_shell: Execute shell commands (tests, linters, etc.)
 
+**Important Guidelines:**
+- If the task is unclear, ambiguous, or not a valid coding request, respond immediately without using tools
+- Only use tools when the task requires actual code inspection or modification
+- For greetings, questions, or non-coding requests, respond directly
+
 **Instructions:**
-1. First, use neo4j_query to understand the codebase structure relevant to the task
-2. Read the necessary files
-3. Make the required changes
-4. Run tests/linters to verify your changes
-5. Iterate if needed
+1. Evaluate if the task requires code changes or inspection
+2. If yes: Use neo4j_query to understand the codebase structure relevant to the task
+3. Read the necessary files
+4. Make the required changes
+5. Run tests/linters to verify your changes
+6. Iterate if needed
 
 Please complete the task now.""")
         
@@ -213,12 +236,12 @@ Please complete the task now.""")
         ))
     
     def _handle_event(self, event: dict, logs: list[str]) -> None:
-        """Handle streaming event from la-factoria."""
+        """Handle streaming event from la-factoria with rich formatting."""
         event_type = event.get("type")
         
         if event_type == "session_created":
             session_id = event.get("session_id")
-            self.console.print(f"[dim]Session created: {session_id}[/dim]")
+            self.console.print(f"[dim]Session created: {session_id}[/dim]\n")
             
         elif event_type == "token":
             # Stream tokens to console
@@ -227,37 +250,184 @@ Please complete the task now.""")
             logs.append(content)
             
         elif event_type == "tool_call":
+            self.tool_call_counter += 1
             tool = event.get("tool", "unknown")
             args = event.get("args", {})
-            self.console.print(f"\n[yellow]🔧 Tool:[/yellow] {tool}")
-            if self.config.verbose:
-                self.console.print(f"[dim]Args: {json.dumps(args, indent=2)}[/dim]")
-            logs.append(f"Tool call: {tool}")
+            tool_id = event.get("tool_call_id", "")
+            
+            # Create a visually distinct tool call display
+            self.console.print("\n")
+            
+            # Build the tool call panel content
+            tool_info = Text()
+            tool_info.append(f"🔧 Tool Call #{self.tool_call_counter}\n", style="bold yellow")
+            tool_info.append(f"Tool: ", style="cyan")
+            tool_info.append(f"{tool}\n", style="bold white")
+            
+            if tool_id:
+                tool_info.append(f"ID: ", style="dim cyan")
+                tool_info.append(f"{tool_id}\n", style="dim")
+            
+            # Format arguments based on verbosity and size
+            if args:
+                tool_info.append(f"\nArguments:\n", style="cyan")
+                args_str = json.dumps(args, indent=2)
+                
+                # Always show some args, but truncate if too long and not verbose
+                if len(args_str) > 500 and not self.config.verbose:
+                    # Show compact version for large args
+                    arg_keys = list(args.keys())
+                    tool_info.append(f"  {', '.join(arg_keys)}\n", style="yellow")
+                    tool_info.append(f"  [dim](use --verbose to see full args)[/dim]\n", style="dim")
+                else:
+                    # Show full args with syntax highlighting
+                    try:
+                        syntax = Syntax(args_str, "json", theme="monokai", line_numbers=False)
+                        self.console.print(syntax)
+                    except:
+                        tool_info.append(f"{args_str}\n", style="yellow")
+            
+            # Show the panel only if we didn't already print syntax
+            if not (args and (len(json.dumps(args, indent=2)) <= 500 or self.config.verbose)):
+                self.console.print(Panel(
+                    tool_info,
+                    border_style="yellow",
+                    padding=(0, 1)
+                ))
+            else:
+                # Just show the header if we printed syntax separately
+                self.console.print(tool_info)
+            
+            logs.append(f"Tool call #{self.tool_call_counter}: {tool}")
             
         elif event_type == "tool_result":
             content = event.get("content", "")
-            if self.config.verbose:
-                self.console.print(f"[dim]Result: {content[:200]}...[/dim]" if len(content) > 200 else f"[dim]Result: {content}[/dim]")
+            tool_call_id = event.get("tool_call_id", "")
+            is_error = event.get("is_error", False)
+            
+            # Create tool result display
+            result_info = Text()
+            
+            if is_error:
+                result_info.append("❌ Tool Error\n", style="bold red")
+                border_style = "red"
+            else:
+                result_info.append("✓ Tool Result\n", style="bold green")
+                border_style = "green"
+            
+            if tool_call_id:
+                result_info.append(f"ID: ", style="dim cyan")
+                result_info.append(f"{tool_call_id}\n", style="dim")
+            
+            # Format the result content
+            if content:
+                result_info.append(f"\nOutput:\n", style="cyan")
+                
+                # Intelligently display based on content type and size
+                content_str = str(content)
+                
+                if len(content_str) > 1000 and not self.config.verbose:
+                    # Truncate long results
+                    result_info.append(f"{content_str[:500]}\n", style="white")
+                    result_info.append(f"... [dim]({len(content_str) - 500} more chars, use --verbose to see all)[/dim]\n", style="dim")
+                else:
+                    # Try to detect if it's JSON and format accordingly
+                    if content_str.strip().startswith(("{", "[")):
+                        try:
+                            parsed = json.loads(content_str)
+                            formatted = json.dumps(parsed, indent=2)
+                            if len(formatted) < 1000 or self.config.verbose:
+                                syntax = Syntax(formatted, "json", theme="monokai", line_numbers=False)
+                                self.console.print(Panel(
+                                    syntax,
+                                    title="[bold green]✓ Tool Result[/bold green]",
+                                    border_style=border_style,
+                                    padding=(0, 1)
+                                ))
+                                logs.append(f"Tool result: {formatted[:200]}...")
+                                return
+                        except:
+                            pass
+                    
+                    result_info.append(f"{content_str}\n", style="white")
+            
+            self.console.print(Panel(
+                result_info,
+                border_style=border_style,
+                padding=(0, 1)
+            ))
+            
+            logs.append(f"Tool result: {content_str[:200] if content else 'empty'}...")
+            self.console.print()  # Add spacing after tool result
             
         elif event_type == "answer":
             content = event.get("content", "")
-            self.console.print(f"\n[green]✓[/green] {content}")
+            self.console.print(f"\n[bold green]✓ Agent Response:[/bold green]")
+            self.console.print(f"{content}")
             logs.append(f"Answer: {content}")
             
         elif event_type == "error":
             content = event.get("content", "")
-            self.console.print(f"\n[red]✗ Error:[/red] {content}")
+            self.console.print(Panel(
+                f"[bold red]Error:[/bold red]\n{content}",
+                border_style="red",
+                padding=(1, 2)
+            ))
             logs.append(f"Error: {content}")
             
         elif event_type == "interrupt":
             prompt = event.get("prompt", "")
-            self.console.print(f"\n[yellow]⚠ Interrupt:[/yellow] {prompt}")
+            self.console.print(Panel(
+                f"[bold yellow]⚠ Interrupt:[/bold yellow]\n{prompt}",
+                border_style="yellow",
+                padding=(1, 2)
+            ))
             logs.append(f"Interrupt: {prompt}")
             
         elif event_type == "complete":
             status = event.get("status", "unknown")
             self.console.print(f"\n[dim]Status: {status}[/dim]")
+            
+            # Show summary of tool calls
+            if self.tool_call_counter > 0:
+                self.console.print(f"[dim]Total tool calls: {self.tool_call_counter}[/dim]")
 
+    def _show_tool_summary(self, tool_calls: list[dict]) -> None:
+        """Show a summary of all tool calls made during execution."""
+        self.console.print("\n")
+        
+        # Create a tree view of tool calls
+        tree = Tree("🔧 [bold cyan]Tool Call Summary[/bold cyan]")
+        
+        # Group by tool type
+        tool_groups = {}
+        for tc in tool_calls:
+            tool_name = tc["tool"]
+            if tool_name not in tool_groups:
+                tool_groups[tool_name] = []
+            tool_groups[tool_name].append(tc)
+        
+        # Add to tree
+        for tool_name, calls in tool_groups.items():
+            tool_branch = tree.add(f"[yellow]{tool_name}[/yellow] ({len(calls)} calls)")
+            
+            for i, call in enumerate(calls[:3], 1):  # Show first 3 of each type
+                args = call["args"]
+                # Show key arguments
+                arg_summary = []
+                for key, value in list(args.items())[:2]:  # First 2 args
+                    val_str = str(value)
+                    if len(val_str) > 50:
+                        val_str = val_str[:47] + "..."
+                    arg_summary.append(f"{key}={val_str}")
+                
+                tool_branch.add(f"[dim]Call {i}: {', '.join(arg_summary)}[/dim]")
+            
+            if len(calls) > 3:
+                tool_branch.add(f"[dim]... and {len(calls) - 3} more[/dim]")
+        
+        self.console.print(tree)
+    
     def _get_agent_context(self) -> dict:
         """
         Build context to pass to the agent.
