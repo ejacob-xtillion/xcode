@@ -1,13 +1,17 @@
 """
 Agent runner - spawns and manages la-factoria agents
 """
+import asyncio
+import json
 import subprocess
 import sys
 from typing import Optional
+import httpx
 from rich.console import Console
 from rich.live import Live
 from rich.panel import Panel
 from rich.text import Text
+from rich.status import Status
 
 from xcode.config import XCodeConfig
 from xcode.result import XCodeResult
@@ -22,6 +26,8 @@ class AgentRunner:
         self.console = console
         self.max_iterations = 10
         self.current_iteration = 0
+        self.lf_base_url = "http://localhost:8000"
+        self.agent_name = "xcode_coding_agent"
 
     def run(self) -> XCodeResult:
         """
@@ -31,9 +37,8 @@ class AgentRunner:
             XCodeResult with success status and logs
         """
         try:
-            # For now, implement a stub that shows the integration points
-            # In production, this would call la-factoria API/CLI
-            return self._run_agent_stub()
+            # Run async agent call
+            return asyncio.run(self._run_agent_async())
             
         except Exception as e:
             return XCodeResult(
@@ -43,72 +48,202 @@ class AgentRunner:
                 error=str(e),
             )
 
-    def _run_agent_stub(self) -> XCodeResult:
+    async def _run_agent_async(self) -> XCodeResult:
         """
-        Stub implementation showing agent integration structure.
+        Run the agent via la-factoria API with streaming.
         
-        In production, this would:
-        1. Call la-factoria to spawn an agent
-        2. Pass task, repo path, project name
-        3. Configure Neo4j MCP
-        4. Provide schema context
-        5. Configure LLM (local or cloud)
-        6. Stream agent output
-        7. Capture logs and close the loop
+        Returns:
+            XCodeResult with success status and logs
         """
-        self.console.print("[dim]Agent runner stub - integration points:[/dim]\n")
+        # Build the context-rich query for the agent
+        schema_text = get_schema()
+        query = self._build_agent_query(schema_text)
         
-        # Show what would be passed to la-factoria
-        agent_config = {
-            "task": self.config.task,
-            "repo_path": str(self.config.repo_path),
-            "project_name": self.config.project_name,
-            "language": self.config.language,
-            "neo4j": {
-                "uri": self.config.neo4j_uri,
-                "user": self.config.neo4j_user,
-                "password": "***",  # Don't show password
-            },
-            "llm": self.config.get_llm_config(),
-            "schema": "Neo4j schema provided",
-            "max_iterations": self.max_iterations,
+        # Show configuration
+        self._show_config()
+        
+        # Prepare request
+        request_data = {
+            "agent_name": self.agent_name,
+            "query": query
         }
         
+        logs = []
+        session_id = None
+        final_status = "unknown"
+        execution_time_ms = 0
+        
+        try:
+            self.console.print(f"\n[bold cyan]🤖 Connecting to la-factoria agent...[/bold cyan]")
+            
+            async with httpx.AsyncClient(timeout=300.0) as client:
+                # Stream agent execution
+                async with client.stream(
+                    "POST",
+                    f"{self.lf_base_url}/agents",
+                    json=request_data,
+                    headers={"Accept": "text/event-stream"}
+                ) as response:
+                    if response.status_code != 200:
+                        error_text = await response.aread()
+                        raise Exception(f"La-factoria API error: {response.status_code} - {error_text.decode()}")
+                    
+                    self.console.print("[green]✓[/green] Connected to agent\n")
+                    
+                    # Process streaming events
+                    async for line in response.aiter_lines():
+                        if line.startswith("data: "):
+                            event_data = line[6:]  # Remove "data: " prefix
+                            try:
+                                event = json.loads(event_data)
+                                result = self._handle_event(event, logs)
+                                
+                                # Extract session info from events
+                                if event.get("type") == "session_created":
+                                    session_id = event.get("session_id")
+                                elif event.get("type") == "complete":
+                                    session_id = event.get("session_id")
+                                    final_status = event.get("status", "completed")
+                                    execution_time_ms = event.get("execution_time_ms", 0)
+                                    
+                            except json.JSONDecodeError as e:
+                                self.console.print(f"[yellow]Warning: Failed to parse event: {e}[/yellow]")
+            
+            # Determine success based on final status
+            success = final_status in ["completed", "interrupted"]
+            
+            self.console.print(f"\n[bold]Agent execution {final_status}[/bold]")
+            self.console.print(f"Execution time: {execution_time_ms / 1000:.2f}s")
+            if session_id:
+                self.console.print(f"Session ID: {session_id}")
+            
+            return XCodeResult(
+                success=success,
+                task=self.config.task,
+                iterations=1,
+                logs=logs,
+            )
+            
+        except httpx.ConnectError:
+            self.console.print("[red]✗[/red] Failed to connect to la-factoria")
+            self.console.print("[yellow]Make sure la-factoria is running at http://localhost:8000[/yellow]")
+            self.console.print("[dim]Start it with: cd /path/to/la-factoria && python -m app.main[/dim]")
+            return XCodeResult(
+                success=False,
+                task=self.config.task,
+                iterations=0,
+                error="Failed to connect to la-factoria API",
+            )
+        except Exception as e:
+            self.console.print(f"[red]✗[/red] Error: {str(e)}")
+            return XCodeResult(
+                success=False,
+                task=self.config.task,
+                iterations=self.current_iteration,
+                error=str(e),
+            )
+    
+    def _build_agent_query(self, schema_text: str) -> str:
+        """Build a context-rich query for the agent."""
+        return f"""You are a coding assistant working on a codebase.
+
+**Task:** {self.config.task}
+
+**Repository Information:**
+- Path: {self.config.repo_path}
+- Project: {self.config.project_name}
+- Language: {self.config.language}
+
+**Knowledge Graph:**
+You have access to a Neo4j knowledge graph containing the complete codebase structure.
+Use the neo4j_query tool to understand code relationships, find dependencies, and locate relevant code.
+
+**Neo4j Connection:**
+- URI: {self.config.neo4j_uri}
+- Database: neo4j
+- Project: {self.config.project_name}
+
+**Schema:**
+{schema_text}
+
+**Available Tools:**
+- neo4j_query: Query the knowledge graph to understand code structure
+- read_file: Read files from the repository
+- write_file: Modify files in the repository
+- run_shell: Execute shell commands (tests, linters, etc.)
+
+**Instructions:**
+1. First, use neo4j_query to understand the codebase structure relevant to the task
+2. Read the necessary files
+3. Make the required changes
+4. Run tests/linters to verify your changes
+5. Iterate if needed
+
+Please complete the task now."""
+    
+    def _show_config(self):
+        """Show agent configuration."""
+        llm_config = self.config.get_llm_config()
         self.console.print(Panel(
             Text.from_markup(
-                f"[cyan]Task:[/cyan] {agent_config['task']}\n"
-                f"[cyan]Repository:[/cyan] {agent_config['repo_path']}\n"
-                f"[cyan]Project:[/cyan] {agent_config['project_name']}\n"
-                f"[cyan]Language:[/cyan] {agent_config['language']}\n"
-                f"[cyan]LLM Model:[/cyan] {agent_config['llm']['model']}\n"
-                f"[cyan]LLM Endpoint:[/cyan] {agent_config['llm'].get('base_url', 'cloud (OpenAI)')}\n"
-                f"[cyan]Neo4j:[/cyan] {agent_config['neo4j']['uri']}\n"
-                f"[cyan]Max Iterations:[/cyan] {agent_config['max_iterations']}"
+                f"[cyan]Task:[/cyan] {self.config.task}\n"
+                f"[cyan]Repository:[/cyan] {self.config.repo_path}\n"
+                f"[cyan]Project:[/cyan] {self.config.project_name}\n"
+                f"[cyan]Language:[/cyan] {self.config.language}\n"
+                f"[cyan]Agent:[/cyan] {self.agent_name}\n"
+                f"[cyan]LF API:[/cyan] {self.lf_base_url}\n"
+                f"[cyan]LLM Model:[/cyan] {llm_config['model']}\n"
+                f"[cyan]Neo4j:[/cyan] {self.config.neo4j_uri}"
             ),
             title="[bold]Agent Configuration[/bold]",
             border_style="cyan"
         ))
+    
+    def _handle_event(self, event: dict, logs: list[str]) -> None:
+        """Handle streaming event from la-factoria."""
+        event_type = event.get("type")
         
-        self.console.print("\n[yellow]Note:[/yellow] This is a stub. In production:")
-        self.console.print("  1. Spawn la-factoria agent with above config")
-        self.console.print("  2. Provide Neo4j schema as context")
-        self.console.print("  3. Stream agent actions and output")
-        self.console.print("  4. Capture tool outputs (tests, linter, commands)")
-        self.console.print("  5. Pass logs back to agent for verification")
-        self.console.print("  6. Iterate until success or max iterations")
-        self.console.print("  7. Return final result\n")
-        
-        # Simulate success for now
-        return XCodeResult(
-            success=True,
-            task=self.config.task,
-            iterations=1,
-            logs=[
-                "Agent would execute task here",
-                "Logs would be captured and passed back",
-                "Verification would check success criteria",
-            ],
-        )
+        if event_type == "session_created":
+            session_id = event.get("session_id")
+            self.console.print(f"[dim]Session created: {session_id}[/dim]")
+            
+        elif event_type == "token":
+            # Stream tokens to console
+            content = event.get("content", "")
+            self.console.print(content, end="")
+            logs.append(content)
+            
+        elif event_type == "tool_call":
+            tool = event.get("tool", "unknown")
+            args = event.get("args", {})
+            self.console.print(f"\n[yellow]🔧 Tool:[/yellow] {tool}")
+            if self.config.verbose:
+                self.console.print(f"[dim]Args: {json.dumps(args, indent=2)}[/dim]")
+            logs.append(f"Tool call: {tool}")
+            
+        elif event_type == "tool_result":
+            content = event.get("content", "")
+            if self.config.verbose:
+                self.console.print(f"[dim]Result: {content[:200]}...[/dim]" if len(content) > 200 else f"[dim]Result: {content}[/dim]")
+            
+        elif event_type == "answer":
+            content = event.get("content", "")
+            self.console.print(f"\n[green]✓[/green] {content}")
+            logs.append(f"Answer: {content}")
+            
+        elif event_type == "error":
+            content = event.get("content", "")
+            self.console.print(f"\n[red]✗ Error:[/red] {content}")
+            logs.append(f"Error: {content}")
+            
+        elif event_type == "interrupt":
+            prompt = event.get("prompt", "")
+            self.console.print(f"\n[yellow]⚠ Interrupt:[/yellow] {prompt}")
+            logs.append(f"Interrupt: {prompt}")
+            
+        elif event_type == "complete":
+            status = event.get("status", "unknown")
+            self.console.print(f"\n[dim]Status: {status}[/dim]")
 
     def _get_agent_context(self) -> dict:
         """
