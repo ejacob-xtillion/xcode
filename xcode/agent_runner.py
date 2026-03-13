@@ -1,13 +1,20 @@
 """
 Agent runner - spawns and manages la-factoria agents
 """
+import asyncio
+import json
 import subprocess
 import sys
 from typing import Optional
+import httpx
 from rich.console import Console
 from rich.live import Live
 from rich.panel import Panel
 from rich.text import Text
+from rich.status import Status
+from rich.syntax import Syntax
+from rich.tree import Tree
+from rich.table import Table
 
 from xcode.config import XCodeConfig
 from xcode.result import XCodeResult
@@ -22,6 +29,9 @@ class AgentRunner:
         self.console = console
         self.max_iterations = 10
         self.current_iteration = 0
+        self.lf_base_url = "http://localhost:8000"
+        self.agent_name = "xcode_coding_agent"
+        self.tool_call_counter = 0  # Track tool calls for better display
 
     def run(self) -> XCodeResult:
         """
@@ -31,9 +41,8 @@ class AgentRunner:
             XCodeResult with success status and logs
         """
         try:
-            # For now, implement a stub that shows the integration points
-            # In production, this would call la-factoria API/CLI
-            return self._run_agent_stub()
+            # Run async agent call
+            return asyncio.run(self._run_agent_async())
             
         except Exception as e:
             return XCodeResult(
@@ -43,73 +52,382 @@ class AgentRunner:
                 error=str(e),
             )
 
-    def _run_agent_stub(self) -> XCodeResult:
+    async def _run_agent_async(self, conversation_context: str = "") -> XCodeResult:
         """
-        Stub implementation showing agent integration structure.
+        Run the agent via la-factoria API with streaming.
         
-        In production, this would:
-        1. Call la-factoria to spawn an agent
-        2. Pass task, repo path, project name
-        3. Configure Neo4j MCP
-        4. Provide schema context
-        5. Configure LLM (local or cloud)
-        6. Stream agent output
-        7. Capture logs and close the loop
+        Args:
+            conversation_context: Previous conversation history for interactive mode
+        
+        Returns:
+            XCodeResult with success status and logs
         """
-        self.console.print("[dim]Agent runner stub - integration points:[/dim]\n")
+        # Build the context-rich query for the agent
+        schema_text = get_schema()
+        query = self._build_agent_query(schema_text, conversation_context)
         
-        # Show what would be passed to la-factoria
-        agent_config = {
-            "task": self.config.task,
-            "repo_path": str(self.config.repo_path),
-            "project_name": self.config.project_name,
-            "language": self.config.language,
-            "neo4j": {
-                "uri": self.config.neo4j_uri,
-                "user": self.config.neo4j_user,
-                "password": "***",  # Don't show password
-            },
-            "llm": self.config.get_llm_config(),
-            "schema": "Neo4j schema provided",
-            "max_iterations": self.max_iterations,
+        # Show configuration
+        self._show_config()
+        
+        # Prepare request
+        request_data = {
+            "agent_name": self.agent_name,
+            "query": query
         }
         
+        logs = []
+        session_id = None
+        final_status = "unknown"
+        execution_time_ms = 0
+        tool_calls = []  # Track all tool calls for summary
+        
+        try:
+            self.console.print(f"\n[bold cyan]🤖 Connecting to la-factoria agent...[/bold cyan]")
+            
+            async with httpx.AsyncClient(timeout=300.0) as client:
+                # Stream agent execution
+                async with client.stream(
+                    "POST",
+                    f"{self.lf_base_url}/agents",
+                    json=request_data,
+                    headers={"Accept": "text/event-stream"}
+                ) as response:
+                    if response.status_code != 200:
+                        error_text = await response.aread()
+                        raise Exception(f"La-factoria API error: {response.status_code} - {error_text.decode()}")
+                    
+                    self.console.print("[green]✓[/green] Connected to agent\n")
+                    
+                    # Process streaming events
+                    async for line in response.aiter_lines():
+                        if line.startswith("data: "):
+                            event_data = line[6:]  # Remove "data: " prefix
+                            try:
+                                event = json.loads(event_data)
+                                
+                                # Track tool calls for summary
+                                if event.get("type") == "tool_call":
+                                    tool_calls.append({
+                                        "tool": event.get("tool"),
+                                        "args": event.get("args", {}),
+                                    })
+                                
+                                result = self._handle_event(event, logs)
+                                
+                                # Extract session info from events
+                                if event.get("type") == "session_created":
+                                    session_id = event.get("session_id")
+                                elif event.get("type") == "complete":
+                                    session_id = event.get("session_id")
+                                    final_status = event.get("status", "completed")
+                                    execution_time_ms = event.get("execution_time_ms", 0)
+                                    
+                            except json.JSONDecodeError as e:
+                                self.console.print(f"[yellow]Warning: Failed to parse event: {e}[/yellow]")
+            
+            # Determine success based on final status
+            success = final_status in ["completed", "interrupted"]
+            
+            self.console.print(f"\n[bold]Agent execution {final_status}[/bold]")
+            self.console.print(f"Execution time: {execution_time_ms / 1000:.2f}s")
+            if session_id:
+                self.console.print(f"Session ID: {session_id}")
+            
+            # Show tool call summary
+            if tool_calls and self.config.verbose:
+                self._show_tool_summary(tool_calls)
+            
+            return XCodeResult(
+                success=success,
+                task=self.config.task,
+                iterations=1,
+                logs=logs,
+            )
+            
+        except httpx.ConnectError:
+            self.console.print("[red]✗[/red] Failed to connect to la-factoria")
+            self.console.print("[yellow]Make sure la-factoria is running at http://localhost:8000[/yellow]")
+            self.console.print("[dim]Start it with: cd /path/to/la-factoria && python -m app.main[/dim]")
+            return XCodeResult(
+                success=False,
+                task=self.config.task,
+                iterations=0,
+                error="Failed to connect to la-factoria API",
+            )
+        except Exception as e:
+            self.console.print(f"[red]✗[/red] Error: {str(e)}")
+            return XCodeResult(
+                success=False,
+                task=self.config.task,
+                iterations=self.current_iteration,
+                error=str(e),
+            )
+    
+    def _build_agent_query(self, schema_text: str, conversation_context: str = "") -> str:
+        """Build a context-rich query for the agent."""
+        query_parts = []
+        
+        # Add conversation context if available (for interactive mode)
+        if conversation_context:
+            query_parts.append(conversation_context)
+            query_parts.append("\n---\n")
+        
+        # Add current task
+        query_parts.append(f"""You are a coding assistant working on a codebase.
+
+**Current Task:** {self.config.task}
+
+**Repository Information:**
+- Path: {self.config.repo_path}
+- Project: {self.config.project_name}
+- Language: {self.config.language}
+
+**Knowledge Graph:**
+You have access to a Neo4j knowledge graph containing the complete codebase structure.
+Use the neo4j_query tool to understand code relationships, find dependencies, and locate relevant code.
+
+**Neo4j Connection:**
+- URI: {self.config.neo4j_uri}
+- Database: neo4j
+- Project: {self.config.project_name}
+
+**Schema:**
+{schema_text}
+
+**Available Tools:**
+- neo4j_query: Query the knowledge graph to understand code structure
+- read_file: Read files from the repository
+- write_file: Modify files in the repository
+- run_shell: Execute shell commands (tests, linters, etc.)
+
+**Important Guidelines:**
+- If the task is unclear, ambiguous, or not a valid coding request, respond immediately without using tools
+- Only use tools when the task requires actual code inspection or modification
+- For greetings, questions, or non-coding requests, respond directly
+
+**Instructions:**
+1. Evaluate if the task requires code changes or inspection
+2. If yes: Use neo4j_query to understand the codebase structure relevant to the task
+3. Read the necessary files
+4. Make the required changes
+5. Run tests/linters to verify your changes
+6. Iterate if needed
+
+Please complete the task now.""")
+        
+        return "\n".join(query_parts)
+    
+    def _show_config(self):
+        """Show agent configuration."""
+        llm_config = self.config.get_llm_config()
         self.console.print(Panel(
             Text.from_markup(
-                f"[cyan]Task:[/cyan] {agent_config['task']}\n"
-                f"[cyan]Repository:[/cyan] {agent_config['repo_path']}\n"
-                f"[cyan]Project:[/cyan] {agent_config['project_name']}\n"
-                f"[cyan]Language:[/cyan] {agent_config['language']}\n"
-                f"[cyan]LLM Model:[/cyan] {agent_config['llm']['model']}\n"
-                f"[cyan]LLM Endpoint:[/cyan] {agent_config['llm'].get('base_url', 'cloud (OpenAI)')}\n"
-                f"[cyan]Neo4j:[/cyan] {agent_config['neo4j']['uri']}\n"
-                f"[cyan]Max Iterations:[/cyan] {agent_config['max_iterations']}"
+                f"[cyan]Task:[/cyan] {self.config.task}\n"
+                f"[cyan]Repository:[/cyan] {self.config.repo_path}\n"
+                f"[cyan]Project:[/cyan] {self.config.project_name}\n"
+                f"[cyan]Language:[/cyan] {self.config.language}\n"
+                f"[cyan]Agent:[/cyan] {self.agent_name}\n"
+                f"[cyan]LF API:[/cyan] {self.lf_base_url}\n"
+                f"[cyan]LLM Model:[/cyan] {llm_config['model']}\n"
+                f"[cyan]Neo4j:[/cyan] {self.config.neo4j_uri}"
             ),
             title="[bold]Agent Configuration[/bold]",
             border_style="cyan"
         ))
+    
+    def _handle_event(self, event: dict, logs: list[str]) -> None:
+        """Handle streaming event from la-factoria with rich formatting."""
+        event_type = event.get("type")
         
-        self.console.print("\n[yellow]Note:[/yellow] This is a stub. In production:")
-        self.console.print("  1. Spawn la-factoria agent with above config")
-        self.console.print("  2. Provide Neo4j schema as context")
-        self.console.print("  3. Stream agent actions and output")
-        self.console.print("  4. Capture tool outputs (tests, linter, commands)")
-        self.console.print("  5. Pass logs back to agent for verification")
-        self.console.print("  6. Iterate until success or max iterations")
-        self.console.print("  7. Return final result\n")
-        
-        # Simulate success for now
-        return XCodeResult(
-            success=True,
-            task=self.config.task,
-            iterations=1,
-            logs=[
-                "Agent would execute task here",
-                "Logs would be captured and passed back",
-                "Verification would check success criteria",
-            ],
-        )
+        if event_type == "session_created":
+            session_id = event.get("session_id")
+            self.console.print(f"[dim]Session created: {session_id}[/dim]\n")
+            
+        elif event_type == "token":
+            # Stream tokens to console
+            content = event.get("content", "")
+            self.console.print(content, end="")
+            logs.append(content)
+            
+        elif event_type == "tool_call":
+            self.tool_call_counter += 1
+            tool = event.get("tool", "unknown")
+            args = event.get("args", {})
+            tool_id = event.get("tool_call_id", "")
+            
+            # Create a visually distinct tool call display
+            self.console.print("\n")
+            
+            # Build the tool call panel content
+            tool_info = Text()
+            tool_info.append(f"🔧 Tool Call #{self.tool_call_counter}\n", style="bold yellow")
+            tool_info.append(f"Tool: ", style="cyan")
+            tool_info.append(f"{tool}\n", style="bold white")
+            
+            if tool_id:
+                tool_info.append(f"ID: ", style="dim cyan")
+                tool_info.append(f"{tool_id}\n", style="dim")
+            
+            # Format arguments based on verbosity and size
+            if args:
+                tool_info.append(f"\nArguments:\n", style="cyan")
+                args_str = json.dumps(args, indent=2)
+                
+                # Always show some args, but truncate if too long and not verbose
+                if len(args_str) > 500 and not self.config.verbose:
+                    # Show compact version for large args
+                    arg_keys = list(args.keys())
+                    tool_info.append(f"  {', '.join(arg_keys)}\n", style="yellow")
+                    tool_info.append(f"  [dim](use --verbose to see full args)[/dim]\n", style="dim")
+                else:
+                    # Show full args with syntax highlighting
+                    try:
+                        syntax = Syntax(args_str, "json", theme="monokai", line_numbers=False)
+                        self.console.print(syntax)
+                    except:
+                        tool_info.append(f"{args_str}\n", style="yellow")
+            
+            # Show the panel only if we didn't already print syntax
+            if not (args and (len(json.dumps(args, indent=2)) <= 500 or self.config.verbose)):
+                self.console.print(Panel(
+                    tool_info,
+                    border_style="yellow",
+                    padding=(0, 1)
+                ))
+            else:
+                # Just show the header if we printed syntax separately
+                self.console.print(tool_info)
+            
+            logs.append(f"Tool call #{self.tool_call_counter}: {tool}")
+            
+        elif event_type == "tool_result":
+            content = event.get("content", "")
+            tool_call_id = event.get("tool_call_id", "")
+            is_error = event.get("is_error", False)
+            
+            # Create tool result display
+            result_info = Text()
+            
+            if is_error:
+                result_info.append("❌ Tool Error\n", style="bold red")
+                border_style = "red"
+            else:
+                result_info.append("✓ Tool Result\n", style="bold green")
+                border_style = "green"
+            
+            if tool_call_id:
+                result_info.append(f"ID: ", style="dim cyan")
+                result_info.append(f"{tool_call_id}\n", style="dim")
+            
+            # Format the result content
+            if content:
+                result_info.append(f"\nOutput:\n", style="cyan")
+                
+                # Intelligently display based on content type and size
+                content_str = str(content)
+                
+                if len(content_str) > 1000 and not self.config.verbose:
+                    # Truncate long results
+                    result_info.append(f"{content_str[:500]}\n", style="white")
+                    result_info.append(f"... [dim]({len(content_str) - 500} more chars, use --verbose to see all)[/dim]\n", style="dim")
+                else:
+                    # Try to detect if it's JSON and format accordingly
+                    if content_str.strip().startswith(("{", "[")):
+                        try:
+                            parsed = json.loads(content_str)
+                            formatted = json.dumps(parsed, indent=2)
+                            if len(formatted) < 1000 or self.config.verbose:
+                                syntax = Syntax(formatted, "json", theme="monokai", line_numbers=False)
+                                self.console.print(Panel(
+                                    syntax,
+                                    title="[bold green]✓ Tool Result[/bold green]",
+                                    border_style=border_style,
+                                    padding=(0, 1)
+                                ))
+                                logs.append(f"Tool result: {formatted[:200]}...")
+                                return
+                        except:
+                            pass
+                    
+                    result_info.append(f"{content_str}\n", style="white")
+            
+            self.console.print(Panel(
+                result_info,
+                border_style=border_style,
+                padding=(0, 1)
+            ))
+            
+            logs.append(f"Tool result: {content_str[:200] if content else 'empty'}...")
+            self.console.print()  # Add spacing after tool result
+            
+        elif event_type == "answer":
+            content = event.get("content", "")
+            self.console.print(f"\n[bold green]✓ Agent Response:[/bold green]")
+            self.console.print(f"{content}")
+            logs.append(f"Answer: {content}")
+            
+        elif event_type == "error":
+            content = event.get("content", "")
+            self.console.print(Panel(
+                f"[bold red]Error:[/bold red]\n{content}",
+                border_style="red",
+                padding=(1, 2)
+            ))
+            logs.append(f"Error: {content}")
+            
+        elif event_type == "interrupt":
+            prompt = event.get("prompt", "")
+            self.console.print(Panel(
+                f"[bold yellow]⚠ Interrupt:[/bold yellow]\n{prompt}",
+                border_style="yellow",
+                padding=(1, 2)
+            ))
+            logs.append(f"Interrupt: {prompt}")
+            
+        elif event_type == "complete":
+            status = event.get("status", "unknown")
+            self.console.print(f"\n[dim]Status: {status}[/dim]")
+            
+            # Show summary of tool calls
+            if self.tool_call_counter > 0:
+                self.console.print(f"[dim]Total tool calls: {self.tool_call_counter}[/dim]")
 
+    def _show_tool_summary(self, tool_calls: list[dict]) -> None:
+        """Show a summary of all tool calls made during execution."""
+        self.console.print("\n")
+        
+        # Create a tree view of tool calls
+        tree = Tree("🔧 [bold cyan]Tool Call Summary[/bold cyan]")
+        
+        # Group by tool type
+        tool_groups = {}
+        for tc in tool_calls:
+            tool_name = tc["tool"]
+            if tool_name not in tool_groups:
+                tool_groups[tool_name] = []
+            tool_groups[tool_name].append(tc)
+        
+        # Add to tree
+        for tool_name, calls in tool_groups.items():
+            tool_branch = tree.add(f"[yellow]{tool_name}[/yellow] ({len(calls)} calls)")
+            
+            for i, call in enumerate(calls[:3], 1):  # Show first 3 of each type
+                args = call["args"]
+                # Show key arguments
+                arg_summary = []
+                for key, value in list(args.items())[:2]:  # First 2 args
+                    val_str = str(value)
+                    if len(val_str) > 50:
+                        val_str = val_str[:47] + "..."
+                    arg_summary.append(f"{key}={val_str}")
+                
+                tool_branch.add(f"[dim]Call {i}: {', '.join(arg_summary)}[/dim]")
+            
+            if len(calls) > 3:
+                tool_branch.add(f"[dim]... and {len(calls) - 3} more[/dim]")
+        
+        self.console.print(tree)
+    
     def _get_agent_context(self) -> dict:
         """
         Build context to pass to the agent.

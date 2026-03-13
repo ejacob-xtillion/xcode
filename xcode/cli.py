@@ -23,7 +23,7 @@ console = Console()
 
 
 @click.command()
-@click.argument("task", required=True)
+@click.argument("task", required=False)
 @click.option(
     "--path",
     "-p",
@@ -72,9 +72,15 @@ console = Console()
     is_flag=True,
     help="Enable verbose output",
 )
+@click.option(
+    "--interactive",
+    "-i",
+    is_flag=True,
+    help="Start in interactive mode (default if no task provided)",
+)
 @click.version_option(version="0.1.0", prog_name="xcode")
 def main(
-    task: str,
+    task: Optional[str],
     path: str,
     language: str,
     project_name: Optional[str],
@@ -83,31 +89,27 @@ def main(
     llm_endpoint: Optional[str],
     local: bool,
     verbose: bool,
+    interactive: bool,
 ) -> None:
     """
     xCode: AI-powered coding assistant with codebase knowledge graphs.
 
-    TASK: The coding task to accomplish (e.g., "add retry logic to payment client")
+    TASK: The coding task to accomplish (optional - if not provided, starts interactive mode)
 
     Examples:
-        xcode "add type hints to all functions in utils.py"
-        xcode --path /path/to/repo "fix flaky tests in auth module"
-        xcode --local --model llama3.2 "refactor database client"
+        xcode                                           # Start interactive mode
+        xcode -i                                        # Start interactive mode explicitly
+        xcode "add type hints to all functions"        # Single-shot execution
+        xcode --path /path/to/repo "fix flaky tests"   # Single-shot with custom path
+        xcode --local --model llama3.2 "refactor code" # Single-shot with local LLM
     """
     try:
-        # Print banner
-        if not verbose:
-            console.print(
-                Panel.fit(
-                    "[bold cyan]xCode[/bold cyan] - AI Coding Assistant\n"
-                    f"[dim]Task: {task}[/dim]",
-                    border_style="cyan",
-                )
-            )
-
+        # Determine mode: interactive if no task provided or --interactive flag
+        use_interactive = interactive or task is None
+        
         # Build configuration
         config = XCodeConfig(
-            task=task,
+            task=task or "",  # Empty task for interactive mode
             repo_path=Path(path),
             language=language,
             project_name=project_name,
@@ -117,6 +119,32 @@ def main(
             use_local_llm=local,
             verbose=verbose,
         )
+        
+        if use_interactive:
+            # Import here to avoid slow startup for single-shot mode
+            from xcode.interactive import InteractiveSession
+            
+            # Build graph first if needed
+            if config.build_graph:
+                from xcode.orchestrator import XCodeOrchestrator
+                orchestrator = XCodeOrchestrator(config, console)
+                orchestrator._ensure_knowledge_graph()
+            
+            # Start interactive session
+            session = InteractiveSession(config, console)
+            session.run()
+            sys.exit(0)
+        
+        # Single-shot mode (existing behavior)
+        if not verbose:
+            console.print(
+                Panel.fit(
+                    "[bold cyan]xCode[/bold cyan] - AI Coding Assistant\n"
+                    f"[dim]Task: {task}[/dim]",
+                    border_style="cyan",
+                )
+            )
+
 
         if verbose:
             console.print(f"[dim]Configuration:[/dim]")
