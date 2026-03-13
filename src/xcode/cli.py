@@ -6,6 +6,7 @@ import sys
 
 from xcode.ensure_graph import ensure_knowledge_graph
 from xcode.llm_config import LLMConfig, DEFAULT_OLLAMA_ENDPOINT
+from xcode.runner import spawn_agent
 
 
 def main() -> None:
@@ -114,9 +115,13 @@ def main() -> None:
             print(f"Error building knowledge graph: {e}", file=sys.stderr)
             sys.exit(1)
 
-    # Agent spawn will receive llm_config (base_url, model) for local or cloud
-    print(f"Task: {args.task}")
-    print("(agent spawn will run here)")
+    spawn_agent(
+        task=args.task,
+        repo_path=project_path,
+        project_name=project_name,
+        llm_config=llm_config,
+        verbose=args.verbose,
+    )
 
 
 if __name__ == "__main__":
