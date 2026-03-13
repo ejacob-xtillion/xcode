@@ -48,16 +48,19 @@ class AgentRunner:
                 error=str(e),
             )
 
-    async def _run_agent_async(self) -> XCodeResult:
+    async def _run_agent_async(self, conversation_context: str = "") -> XCodeResult:
         """
         Run the agent via la-factoria API with streaming.
+        
+        Args:
+            conversation_context: Previous conversation history for interactive mode
         
         Returns:
             XCodeResult with success status and logs
         """
         # Build the context-rich query for the agent
         schema_text = get_schema()
-        query = self._build_agent_query(schema_text)
+        query = self._build_agent_query(schema_text, conversation_context)
         
         # Show configuration
         self._show_config()
@@ -143,11 +146,19 @@ class AgentRunner:
                 error=str(e),
             )
     
-    def _build_agent_query(self, schema_text: str) -> str:
+    def _build_agent_query(self, schema_text: str, conversation_context: str = "") -> str:
         """Build a context-rich query for the agent."""
-        return f"""You are a coding assistant working on a codebase.
+        query_parts = []
+        
+        # Add conversation context if available (for interactive mode)
+        if conversation_context:
+            query_parts.append(conversation_context)
+            query_parts.append("\n---\n")
+        
+        # Add current task
+        query_parts.append(f"""You are a coding assistant working on a codebase.
 
-**Task:** {self.config.task}
+**Current Task:** {self.config.task}
 
 **Repository Information:**
 - Path: {self.config.repo_path}
@@ -179,7 +190,9 @@ Use the neo4j_query tool to understand code relationships, find dependencies, an
 4. Run tests/linters to verify your changes
 5. Iterate if needed
 
-Please complete the task now."""
+Please complete the task now.""")
+        
+        return "\n".join(query_parts)
     
     def _show_config(self):
         """Show agent configuration."""
