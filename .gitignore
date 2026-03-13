@@ -30,6 +30,7 @@ env/
 # IDEs
 .vscode/
 .idea/
+.cursor/
 *.swp
 *.swo
 *~
@@ -40,6 +41,7 @@ env/
 htmlcov/
 .tox/
 .hypothesis/
+.benchmarks/
 
 # Environment
 .env
@@ -60,3 +62,17 @@ neo4j/
 # Temporary files
 *.tmp
 *.bak
+
+# Temporary documentation and test files
+HOW_TO_TEST.md
+INTEGRATION.md
+PROBLEM_SOLVED.md
+QUICKTEST.md
+TEST_INTEGRATION.md
+QUICKSTART.md
+RELEASE_SUMMARY.md
+analysis_results_*.json
+hello.txt
+test_integration.sh
+demo/
+FIX_SHORT_MESSAGE.md
