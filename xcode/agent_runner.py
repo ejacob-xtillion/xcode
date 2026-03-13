@@ -52,16 +52,55 @@ class AgentRunner:
                 error=str(e),
             )
 
+    def _validate_task(self) -> tuple[bool, str]:
+        """
+        Validate the task before sending to the agent.
+        
+        Returns:
+            tuple[bool, str]: (is_valid, error_message)
+        """
+        import re
+        
+        task = self.config.task.strip()
+        
+        # Check minimum length
+        if len(task) < 3:
+            return False, "Task is too short. Please provide a meaningful coding task."
+        
+        # Check for common invalid patterns
+        invalid_patterns = [
+            (r'^[^a-zA-Z0-9\s]+$', "Task contains only special characters"),
+            (r'^(hi|hello|hey|test)[\]!.]*$', "Please provide a specific coding task instead of a greeting"),
+        ]
+        
+        for pattern, message in invalid_patterns:
+            if re.match(pattern, task, re.IGNORECASE):
+                return False, message
+        
+        return True, ""
+    
     async def _run_agent_async(self, conversation_context: str = "") -> XCodeResult:
         """
         Run the agent via la-factoria API with streaming.
-        
+
         Args:
             conversation_context: Previous conversation history for interactive mode
         
         Returns:
             XCodeResult with success status and logs
         """
+        # Validate task first
+        is_valid, error_msg = self._validate_task()
+        if not is_valid:
+            self.console.print(f"[yellow]⚠[/yellow] Invalid task: {error_msg}")
+            self.console.print(f"[dim]Example: 'Add a function to calculate fibonacci numbers'[/dim]")
+            return XCodeResult(
+                success=False,
+                task=self.config.task,
+                iterations=0,
+                error=error_msg,
+            )
+        
         # Build the context-rich query for the agent
         schema_text = get_schema()
         query = self._build_agent_query(schema_text, conversation_context)
