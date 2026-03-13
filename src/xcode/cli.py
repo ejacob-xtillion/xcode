@@ -4,6 +4,8 @@ import argparse
 import os
 import sys
 
+from xcode.ensure_graph import ensure_knowledge_graph
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(
@@ -66,9 +68,22 @@ def main() -> None:
         print(f"Project name: {project_name}")
         print(f"Build graph: {not args.no_build_graph}")
 
-    # Orchestration will be wired in later (ensure-graph, spawn agent)
+    if not args.no_build_graph:
+        try:
+            ensure_knowledge_graph(
+                project_path=project_path,
+                language=args.language,
+                project_name=project_name,
+                keep_existing=False,
+                verbose=args.verbose,
+            )
+        except Exception as e:
+            print(f"Error building knowledge graph: {e}", file=sys.stderr)
+            sys.exit(1)
+
+    # Agent spawn will be wired in later
     print(f"Task: {args.task}")
-    print("(ensure-graph and agent spawn will run here)")
+    print("(agent spawn will run here)")
 
 
 if __name__ == "__main__":

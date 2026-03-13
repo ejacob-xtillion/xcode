@@ -4,7 +4,9 @@ version = "0.1.0"
 description = "CLI tool (like Claude Code) to run coding tasks with xgraph knowledge graph and la-factoria agents; supports local LLMs."
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "xgraph>=0.1.0",
+]
 
 [build-system]
 requires = ["setuptools>=61.0"]
