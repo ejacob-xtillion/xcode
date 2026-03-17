@@ -48,6 +48,7 @@ class LatencyBenchmark:
         self.repo_path = repo_path
         self.console = console
         self.results: List[BenchmarkResult] = []
+        self.graph_built = False  # Track if graph has been built
         
     def get_test_tasks(self) -> List[tuple[str, str]]:
         """
@@ -89,15 +90,15 @@ class LatencyBenchmark:
         self, 
         task_type: str, 
         task: str,
-        build_graph: bool = False
+        build_graph: bool = True
     ) -> BenchmarkResult:
         """
-        Benchmark a single task execution.
+        Benchmark a single task execution using the orchestrator.
         
         Args:
             task_type: Type of task for categorization
             task: Task description
-            build_graph: Whether to build the knowledge graph
+            build_graph: Whether to enable graph building (orchestrator decides if actually needed)
             
         Returns:
             BenchmarkResult with timing data
@@ -111,44 +112,54 @@ class LatencyBenchmark:
             verbose=False,
         )
         
-        # Measure classification time
-        start_classify = time.perf_counter()
-        classifier = TaskClassifier()
-        classification = classifier.classify(task)
-        classification_time_ms = (time.perf_counter() - start_classify) * 1000
+        # Measure total orchestrator execution time
+        start_total = time.perf_counter()
         
-        # Measure graph build time (if needed)
+        # Track component times
+        classification_time_ms = 0.0
         graph_build_time_ms = 0.0
-        if build_graph:
-            start_graph = time.perf_counter()
-            try:
-                graph_builder = GraphBuilder(config, Console(quiet=True))
-                graph_builder.build()
-                graph_build_time_ms = (time.perf_counter() - start_graph) * 1000
-            except Exception as e:
-                # Graph build might fail, that's ok for benchmarking
-                graph_build_time_ms = (time.perf_counter() - start_graph) * 1000
+        agent_time_ms = 0.0
         
-        # Measure agent execution time
-        start_agent = time.perf_counter()
-        agent_runner = AgentRunner(config, Console(quiet=True))
-        
-        # Mock the agent execution to avoid actual API calls
-        # In real benchmarks, you'd call the actual agent
         try:
+            # Measure classification time
+            start_classify = time.perf_counter()
+            classifier = TaskClassifier()
+            classification = classifier.classify(task)
+            classification_time_ms = (time.perf_counter() - start_classify) * 1000
+            
+            # Measure graph build time (orchestrator decides if needed)
+            start_graph = time.perf_counter()
+            if build_graph and classification.needs_neo4j:
+                try:
+                    graph_builder = GraphBuilder(config, Console(quiet=True))
+                    graph_builder.build()
+                    graph_build_time_ms = (time.perf_counter() - start_graph) * 1000
+                except Exception as e:
+                    # Graph build might fail, that's ok for benchmarking
+                    graph_build_time_ms = (time.perf_counter() - start_graph) * 1000
+            else:
+                # Orchestrator skipped graph build
+                graph_build_time_ms = 0.0
+            
+            # Measure agent execution time
+            start_agent = time.perf_counter()
+            
+            # Mock the agent execution to avoid actual API calls
+            # In real benchmarks, you'd call the actual agent
             # Simulate agent work based on task complexity
             await asyncio.sleep(0.1)  # Simulate network/processing
             tool_calls = classification.max_files_to_read + 2  # Estimate
             agent_time_ms = (time.perf_counter() - start_agent) * 1000
+            
+            total_time_ms = (time.perf_counter() - start_total) * 1000
             success = True
             error = ""
+            
         except Exception as e:
-            agent_time_ms = (time.perf_counter() - start_agent) * 1000
+            total_time_ms = (time.perf_counter() - start_total) * 1000
             tool_calls = 0
             success = False
             error = str(e)
-        
-        total_time_ms = classification_time_ms + graph_build_time_ms + agent_time_ms
         
         return BenchmarkResult(
             task_type=task_type,
@@ -181,11 +192,12 @@ class LatencyBenchmark:
                 total=len(tasks) * iterations,
             )
             
+            # Build graph once at start for tasks that need it
+            # Orchestrator will decide based on classification
             for task_type, task_desc in tasks:
                 for i in range(iterations):
-                    # Only build graph on first iteration
-                    build_graph = (i == 0)
-                    result = await self.benchmark_task(task_type, task_desc, build_graph)
+                    # Always pass build_graph=True, orchestrator decides if actually needed
+                    result = await self.benchmark_task(task_type, task_desc, build_graph=True)
                     self.results.append(result)
                     progress.advance(task_progress)
     
