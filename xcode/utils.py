@@ -1,9 +1,9 @@
 """
-Utility functions for simple arithmetic operations.
+Utility functions for simple arithmetic and basic string operations.
 
 Provides basic calculator functionality: add, subtract, multiply, and divide.
 Includes a convenience `calculate` function that dispatches based on an
-operation string or symbol.
+operation string or symbol. Also includes simple string helpers.
 """
 from typing import Callable, Union
 
@@ -33,6 +33,15 @@ def divide(a: Number, b: Number) -> Number:
     if b == 0:
         raise ZeroDivisionError("Cannot divide by zero")
     return a / b
+
+
+def reverse_upper(text: str) -> str:
+    """Return the given text reversed and converted to uppercase.
+
+    Example:
+        reverse_upper("Hello") -> "OLLEH"
+    """
+    return text[::-1].upper()
 
 
 _OPERATION_MAP: dict[str, Callable[[Number, Number], Number]] = {
@@ -78,6 +87,7 @@ __all__ = [
     "subtract",
     "multiply",
     "divide",
+    "reverse_upper",
     "calculate",
     "hello_world",
 ]
