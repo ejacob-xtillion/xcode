@@ -7,6 +7,8 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from xcode.constants import DEFAULT_SKIP_PATTERNS
+
 
 @dataclass
 class FileInfo:
@@ -37,6 +39,8 @@ class FileTreeCache:
     Cache for file tree structure.
 
     Provides fast access to file listings without querying Neo4j.
+    
+    Implements the Statsable protocol via get_stats() method.
     """
 
     project_name: str
@@ -54,21 +58,7 @@ class FileTreeCache:
             skip_patterns: List of patterns to skip (e.g., ['venv', 'node_modules'])
         """
         if skip_patterns is None:
-            skip_patterns = [
-                "venv",
-                ".venv",
-                "env",
-                ".env",
-                "node_modules",
-                ".git",
-                "__pycache__",
-                ".pytest_cache",
-                ".mypy_cache",
-                ".ruff_cache",
-                "build",
-                "dist",
-                ".egg-info",
-            ]
+            skip_patterns = DEFAULT_SKIP_PATTERNS
 
         self.files.clear()
         self.directories.clear()

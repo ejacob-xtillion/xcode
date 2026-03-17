@@ -35,9 +35,9 @@ class TestPriority1Optimizations:
         console = Console(quiet=True)
         orchestrator = XCodeOrchestrator(config, console)
 
-        # Mock the graph builder to track if it's called
-        with patch.object(orchestrator, "_ensure_knowledge_graph") as mock_graph:
-            with patch.object(orchestrator, "_run_agent") as mock_agent:
+        # Mock the graph service to track if it's called
+        with patch.object(orchestrator.graph_service, "ensure_graph_exists") as mock_graph:
+            with patch("xcode.orchestrator.asyncio.run") as mock_agent:
                 mock_agent.return_value = Mock(success=True)
 
                 orchestrator.run()
@@ -58,8 +58,8 @@ class TestPriority1Optimizations:
         console = Console(quiet=True)
         orchestrator = XCodeOrchestrator(config, console)
 
-        with patch.object(orchestrator, "_ensure_knowledge_graph") as mock_graph:
-            with patch.object(orchestrator, "_run_agent") as mock_agent:
+        with patch.object(orchestrator.graph_service, "ensure_graph_exists") as mock_graph:
+            with patch("xcode.orchestrator.asyncio.run") as mock_agent:
                 mock_agent.return_value = Mock(success=True)
 
                 orchestrator.run()
@@ -80,8 +80,8 @@ class TestPriority1Optimizations:
         console = Console(quiet=True)
         orchestrator = XCodeOrchestrator(config, console)
 
-        with patch.object(orchestrator, "_ensure_knowledge_graph") as mock_graph:
-            with patch.object(orchestrator, "_run_agent") as mock_agent:
+        with patch.object(orchestrator.graph_service, "ensure_graph_exists") as mock_graph:
+            with patch("xcode.orchestrator.asyncio.run") as mock_agent:
                 mock_agent.return_value = Mock(success=True)
 
                 orchestrator.run()

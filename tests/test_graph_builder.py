@@ -1,5 +1,8 @@
 """
 Tests for graph_builder module
+
+Note: GraphBuilder is deprecated. These tests verify backward compatibility.
+For new code, use Neo4jGraphRepository directly.
 """
 
 from unittest.mock import Mock, patch
@@ -9,6 +12,7 @@ from rich.console import Console
 
 from xcode.domain.models import XCodeConfig
 from xcode.graph_builder import GraphBuilder
+from xcode.repositories.graph_repository import Neo4jGraphRepository
 
 
 @pytest.fixture
@@ -39,7 +43,7 @@ class TestGraphBuilder:
         assert builder.config == test_config
         assert builder.console == mock_console
 
-    @patch("xcode.graph_builder.GraphBuilder._build_via_library")
+    @patch("xcode.repositories.graph_repository.Neo4jGraphRepository._build_via_library")
     def test_build_via_library_success(self, mock_build_method, test_config, mock_console):
         """Test successful graph building via library."""
         builder = GraphBuilder(test_config, mock_console)
@@ -47,7 +51,7 @@ class TestGraphBuilder:
 
         mock_build_method.assert_called_once()
 
-    @patch("xcode.graph_builder.subprocess.run")
+    @patch("xcode.repositories.graph_repository.subprocess.run")
     def test_build_via_subprocess_success(self, mock_run, test_config, mock_console):
         """Test successful graph building via subprocess."""
         mock_run.return_value = Mock(stdout="Success", stderr="", returncode=0)
@@ -63,7 +67,7 @@ class TestGraphBuilder:
         assert "--language" in call_args
         assert test_config.language in call_args
 
-    @patch("xcode.graph_builder.subprocess.run")
+    @patch("xcode.repositories.graph_repository.subprocess.run")
     def test_build_via_subprocess_failure(self, mock_run, test_config, mock_console):
         """Test subprocess failure handling."""
         mock_run.side_effect = FileNotFoundError()
@@ -73,7 +77,7 @@ class TestGraphBuilder:
         with pytest.raises(RuntimeError, match="xgraph CLI not found"):
             builder._build_via_subprocess()
 
-    @patch("xcode.graph_builder.GraphBuilder._build_via_library")
+    @patch("xcode.repositories.graph_repository.Neo4jGraphRepository._build_via_library")
     def test_build_tries_library_first(self, mock_lib_build, test_config, mock_console):
         """Test that build() tries library first."""
         builder = GraphBuilder(test_config, mock_console)
@@ -81,8 +85,8 @@ class TestGraphBuilder:
 
         mock_lib_build.assert_called_once()
 
-    @patch("xcode.graph_builder.GraphBuilder._build_via_library")
-    @patch("xcode.graph_builder.GraphBuilder._build_via_subprocess")
+    @patch("xcode.repositories.graph_repository.Neo4jGraphRepository._build_via_library")
+    @patch("xcode.repositories.graph_repository.Neo4jGraphRepository._build_via_subprocess")
     def test_build_falls_back_to_subprocess(
         self, mock_subprocess_build, mock_lib_build, test_config, mock_console
     ):

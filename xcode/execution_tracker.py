@@ -56,6 +56,8 @@ class ExecutionTracker:
     - Error patterns
     - Progress indicators
     - Execution time
+    
+    Implements the Statsable protocol via get_stats() method.
     """
 
     def __init__(

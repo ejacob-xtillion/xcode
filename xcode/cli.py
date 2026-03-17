@@ -15,7 +15,7 @@ from rich.text import Text
 
 from xcode.banner import render_compact_header
 from xcode.domain.models import XCodeConfig
-from xcode.orchestrator_new import XCodeOrchestrator
+from xcode.orchestrator import XCodeOrchestrator
 
 # Load environment variables
 load_dotenv()
