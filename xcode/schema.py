@@ -10,25 +10,26 @@ NEO4J_SCHEMA = """
 ### Core Nodes
 - **Project**: Root project container
   - Properties: `id` (project:{name}), `name`, `type`, `path`
-  
+
 - **Folder**: Directory structure
   - Properties: `id`, `name`, `path`
-  
+
 - **File**: Source code files
   - Properties: `id` (file:{path}), `name`, `path`, `line_count`, `description`
-  
+
 - **Class**: Class definitions
   - Properties: `id`, `name`, `path`, `line_number`, `docstring`, `description`
-  
+
 - **Callable**: Functions and methods
-  - Properties: `id`, `name`, `path`, `line_number`, `docstring`, `is_async`, `decorators`, `description`
-  
+  - Properties: `id`, `name`, `path`, `line_number`, `docstring`, `is_async`,
+    `decorators`, `description`
+
 - **Test**: Test functions and methods
   - Properties: `id`, `name`, `path`, `line_number`, `test_framework`, `description`
-  
+
 - **Module**: Imported modules
   - Properties: `id`, `name`
-  
+
 - **Variable**: Variable declarations
   - Properties: `id`, `name`, `path`, `line_number`, `scope`
 

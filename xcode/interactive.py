@@ -1,24 +1,23 @@
 """
 Interactive session manager for xCode — Claude Code-style REPL experience.
 """
+
 import asyncio
-import sys
 from pathlib import Path
-from typing import Optional
 
 from prompt_toolkit import PromptSession
-from prompt_toolkit.history import FileHistory
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.completion import WordCompleter
+from prompt_toolkit.history import FileHistory
 from prompt_toolkit.styles import Style
+from rich import box
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
-from rich import box
 
-from xcode.banner import render_banner, render_help_table
-from xcode.config import XCodeConfig
 from xcode.agent_runner import AgentRunner
+from xcode.banner import render_banner, render_help_table
+from xcode.domain.models import XCodeConfig
 
 # Slash commands available for tab-completion
 _COMMANDS = [
@@ -49,10 +48,12 @@ class InteractiveSession:
             history=FileHistory(str(history_file)),
             auto_suggest=AutoSuggestFromHistory(),
             completer=WordCompleter(_COMMANDS, ignore_case=True),
-            style=Style.from_dict({
-                "prompt":  "ansicyan bold",
-                "": "ansiwhite",
-            }),
+            style=Style.from_dict(
+                {
+                    "prompt": "ansicyan bold",
+                    "": "ansiwhite",
+                }
+            ),
             multiline=False,
             enable_history_search=True,
         )
@@ -82,9 +83,7 @@ class InteractiveSession:
                 self._handle_input(user_input.strip())
 
             except KeyboardInterrupt:
-                self.console.print(
-                    Text("\n  ctrl+d to exit  ·  /help for commands", style="dim")
-                )
+                self.console.print(Text("\n  ctrl+d to exit  ·  /help for commands", style="dim"))
             except EOFError:
                 self._handle_exit()
                 break
@@ -113,9 +112,7 @@ class InteractiveSession:
         self.console.print(Text("  multi-line · empty line to finish", style="dim"))
         while True:
             try:
-                line = self.prompt_session.prompt(
-                    [("class:prompt", "… ")], multiline=False
-                )
+                line = self.prompt_session.prompt([("class:prompt", "… ")], multiline=False)
                 if not line.strip():
                     break
                 lines.append(line)
@@ -127,17 +124,17 @@ class InteractiveSession:
 
     def _handle_command(self, command: str) -> None:
         parts = command.split(maxsplit=1)
-        cmd  = parts[0].lower()
+        cmd = parts[0].lower()
         args = parts[1] if len(parts) > 1 else ""
 
         dispatch = {
-            "/exit":    lambda: self._handle_exit(),
-            "/quit":    lambda: self._handle_exit(),
-            "/help":    lambda: render_help_table(self.console),
-            "/clear":   lambda: self._handle_clear(),
+            "/exit": lambda: self._handle_exit(),
+            "/quit": lambda: self._handle_exit(),
+            "/help": lambda: render_help_table(self.console),
+            "/clear": lambda: self._handle_clear(),
             "/history": lambda: self._handle_history(),
-            "/status":  lambda: self._handle_status(),
-            "/model":   lambda: self._handle_model(args),
+            "/status": lambda: self._handle_status(),
+            "/model": lambda: self._handle_model(args),
             "/verbose": lambda: self._handle_verbose(),
         }
 
@@ -189,11 +186,11 @@ class InteractiveSession:
     def _handle_status(self) -> None:
         lines = Text()
         fields = [
-            ("repo",     str(self.config.repo_path)),
-            ("project",  self.config.project_name),
+            ("repo", str(self.config.repo_path)),
+            ("project", self.config.project_name),
             ("language", self.config.language),
-            ("model",    self.config.model or "default"),
-            ("verbose",  str(self.config.verbose)),
+            ("model", self.config.model or "default"),
+            ("verbose", str(self.config.verbose)),
         ]
         for key, val in fields:
             lines.append(f"  {key:<10}", style="dim")
@@ -211,7 +208,9 @@ class InteractiveSession:
 
     def _handle_model(self, model_name: str) -> None:
         if not model_name:
-            self.console.print(Text(f"  current model  {self.config.model or 'default'}", style="dim"))
+            self.console.print(
+                Text(f"  current model  {self.config.model or 'default'}", style="dim")
+            )
             self.console.print(Text("  usage: /model gpt-4", style="dim"))
             return
         self.config.model = model_name
@@ -229,9 +228,7 @@ class InteractiveSession:
         self.config.task = task
 
         result = asyncio.run(
-            self.agent_runner._run_agent_async(
-                conversation_context=self._build_context()
-            )
+            self.agent_runner._run_agent_async(conversation_context=self._build_context())
         )
 
         role_entry = (

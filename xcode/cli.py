@@ -3,18 +3,18 @@ xCode CLI - Main entry point
 
 Provides a Claude Code-like experience for running AI agents with codebase knowledge graphs.
 """
+
 import os
 import sys
 from pathlib import Path
-from typing import Optional
 
 import click
+from dotenv import load_dotenv
 from rich.console import Console
 from rich.text import Text
-from dotenv import load_dotenv
 
-from xcode.banner import render_banner, render_compact_header
-from xcode.config import XCodeConfig
+from xcode.banner import render_compact_header
+from xcode.domain.models import XCodeConfig
 from xcode.orchestrator import XCodeOrchestrator
 
 # Load environment variables
@@ -81,13 +81,13 @@ console = Console()
 )
 @click.version_option(version="0.1.0", prog_name="xcode")
 def main(
-    task: Optional[str],
+    task: str | None,
     path: str,
     language: str,
-    project_name: Optional[str],
+    project_name: str | None,
     no_build_graph: bool,
-    model: Optional[str],
-    llm_endpoint: Optional[str],
+    model: str | None,
+    llm_endpoint: str | None,
     local: bool,
     verbose: bool,
     interactive: bool,
@@ -123,8 +123,21 @@ def main(
             from xcode.interactive import InteractiveSession
 
             if config.build_graph:
-                orchestrator = XCodeOrchestrator(config, console)
-                orchestrator._ensure_knowledge_graph()
+                from xcode.repositories.graph_repository import Neo4jGraphRepository
+                from xcode.services.graph_service import GraphService
+
+                graph_repo = Neo4jGraphRepository(
+                    console=console,
+                    verbose=config.verbose,
+                    enable_descriptions=config.xgraph_enable_descriptions,
+                )
+                graph_service = GraphService(graph_repo, console)
+                graph_service.ensure_graph_exists(
+                    project_name=config.project_name,
+                    repo_path=config.repo_path,
+                    language=config.language,
+                    verbose=config.verbose,
+                )
 
             session = InteractiveSession(config, console)
             session.run()
@@ -142,7 +155,9 @@ def main(
             console.print(Text("  Configuration", style="dim"))
             console.print(Text(f"    language  {config.language}", style="dim"))
             console.print(Text(f"    project   {config.project_name}", style="dim"))
-            console.print(Text(f"    graph     {'skip' if not config.build_graph else 'build'}", style="dim"))
+            console.print(
+                Text(f"    graph     {'skip' if not config.build_graph else 'build'}", style="dim")
+            )
             if config.llm_endpoint:
                 console.print(Text(f"    endpoint  {config.llm_endpoint}", style="dim"))
             console.print()

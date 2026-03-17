@@ -1,9 +1,10 @@
 """
 Tests for verification module
 """
-import pytest
-from pathlib import Path
+
 from unittest.mock import Mock, patch
+
+import pytest
 from rich.console import Console
 
 from xcode.verification import VerificationLoop, VerificationResult
@@ -31,7 +32,7 @@ class TestVerificationResult:
             checks_run=["tests", "linter"],
             output="All checks passed",
         )
-        
+
         assert result.success is True
         assert result.checks_run == ["tests", "linter"]
         assert result.output == "All checks passed"
@@ -45,7 +46,7 @@ class TestVerificationResult:
             output="Test output",
             error="Tests failed",
         )
-        
+
         assert result.success is False
         assert result.error == "Tests failed"
 
@@ -56,7 +57,7 @@ class TestVerificationLoop:
     def test_init(self, tmp_path, mock_console):
         """Test VerificationLoop initialization."""
         loop = VerificationLoop(tmp_path, "python", mock_console)
-        
+
         assert loop.repo_path == tmp_path
         assert loop.language == "python"
         assert loop.console == mock_console
@@ -69,9 +70,9 @@ class TestVerificationLoop:
             stdout="test_example.py::test_foo PASSED",
             stderr="",
         )
-        
+
         success, stdout, stderr = verification_loop._run_pytest()
-        
+
         assert success is True
         assert "PASSED" in stdout
         assert stderr == ""
@@ -85,9 +86,9 @@ class TestVerificationLoop:
             stdout="test_example.py::test_foo FAILED",
             stderr="AssertionError",
         )
-        
+
         success, stdout, stderr = verification_loop._run_pytest()
-        
+
         assert success is False
         assert "FAILED" in stdout
 
@@ -95,9 +96,9 @@ class TestVerificationLoop:
     def test_run_pytest_not_found(self, mock_run, verification_loop):
         """Test pytest not installed."""
         mock_run.side_effect = FileNotFoundError()
-        
+
         success, stdout, stderr = verification_loop._run_pytest()
-        
+
         assert success is False
         assert "pytest not found" in stderr
 
@@ -109,9 +110,9 @@ class TestVerificationLoop:
             stdout="All checks passed!",
             stderr="",
         )
-        
+
         success, stdout, stderr = verification_loop._run_ruff()
-        
+
         assert success is True
         assert stderr == ""
 
@@ -123,9 +124,9 @@ class TestVerificationLoop:
             stdout="file.py:10:5: E501 line too long",
             stderr="",
         )
-        
+
         success, stdout, stderr = verification_loop._run_ruff()
-        
+
         assert success is False
         assert "E501" in stdout
 
@@ -137,9 +138,9 @@ class TestVerificationLoop:
             stdout="command output",
             stderr="",
         )
-        
+
         success, stdout, stderr, exit_code = verification_loop.run_command(["echo", "test"])
-        
+
         assert success is True
         assert exit_code == 0
         mock_run.assert_called_once()
@@ -152,9 +153,9 @@ class TestVerificationLoop:
             stdout="",
             stderr="error",
         )
-        
+
         success, stdout, stderr, exit_code = verification_loop.run_command(["false"])
-        
+
         assert success is False
         assert exit_code == 1
 
@@ -164,9 +165,9 @@ class TestVerificationLoop:
         """Test running all verification checks."""
         mock_tests.return_value = (True, "Tests passed", "")
         mock_linter.return_value = (True, "Lint passed", "")
-        
+
         result = verification_loop.verify(run_tests=True, run_linter=True)
-        
+
         assert result.success is True
         assert "tests" in result.checks_run
         assert "linter" in result.checks_run
@@ -179,9 +180,9 @@ class TestVerificationLoop:
         """Test verification with test failures."""
         mock_tests.return_value = (False, "Tests failed", "error")
         mock_linter.return_value = (True, "Lint passed", "")
-        
+
         result = verification_loop.verify(run_tests=True, run_linter=True)
-        
+
         assert result.success is False
         assert "tests" in result.checks_run
 
@@ -189,9 +190,9 @@ class TestVerificationLoop:
     def test_verify_only_tests(self, mock_tests, verification_loop):
         """Test running only tests."""
         mock_tests.return_value = (True, "Tests passed", "")
-        
+
         result = verification_loop.verify(run_tests=True, run_linter=False)
-        
+
         assert result.success is True
         assert "tests" in result.checks_run
         assert "linter" not in result.checks_run
@@ -200,12 +201,12 @@ class TestVerificationLoop:
         """Test that run_tests delegates to language-specific method."""
         loop_python = VerificationLoop(tmp_path, "python", mock_console)
         loop_csharp = VerificationLoop(tmp_path, "csharp", mock_console)
-        
+
         with patch.object(loop_python, "_run_pytest") as mock_pytest:
             mock_pytest.return_value = (True, "", "")
             loop_python.run_tests()
             mock_pytest.assert_called_once()
-        
+
         with patch.object(loop_csharp, "_run_dotnet_test") as mock_dotnet:
             mock_dotnet.return_value = (True, "", "")
             loop_csharp.run_tests()
@@ -215,12 +216,12 @@ class TestVerificationLoop:
         """Test that run_linter delegates to language-specific method."""
         loop_python = VerificationLoop(tmp_path, "python", mock_console)
         loop_csharp = VerificationLoop(tmp_path, "csharp", mock_console)
-        
+
         with patch.object(loop_python, "_run_ruff") as mock_ruff:
             mock_ruff.return_value = (True, "", "")
             loop_python.run_linter()
             mock_ruff.assert_called_once()
-        
+
         with patch.object(loop_csharp, "_run_dotnet_format") as mock_format:
             mock_format.return_value = (True, "", "")
             loop_csharp.run_linter()

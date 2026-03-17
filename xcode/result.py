@@ -1,20 +1,9 @@
 """
-Result object for xCode execution
+Result object for xCode execution.
+
+Provides backward compatibility alias for AgentResult.
 """
-from dataclasses import dataclass
-from typing import Optional, List
 
+from xcode.domain.models import AgentResult
 
-@dataclass
-class XCodeResult:
-    """Result of xCode execution."""
-
-    success: bool
-    task: str
-    iterations: int
-    error: Optional[str] = None
-    logs: List[str] = None
-
-    def __post_init__(self) -> None:
-        if self.logs is None:
-            self.logs = []
+XCodeResult = AgentResult

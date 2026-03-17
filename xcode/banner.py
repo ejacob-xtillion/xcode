@@ -1,6 +1,7 @@
 """
 xCode welcome banner — pixel art logo rendered with Rich.
 """
+
 from pathlib import Path
 
 from rich import box
@@ -21,8 +22,8 @@ _PIXEL: dict[str, list[str]] = {
 }
 
 # "x" → warm amber, "Code" → cool cyan
-_WORD   = ["x",      "C",            "o",            "d",            "e"]
-_COLORS = ["yellow", "bright_cyan",  "bright_cyan",  "bright_cyan",  "bright_cyan"]
+_WORD = ["x", "C", "o", "d", "e"]
+_COLORS = ["yellow", "bright_cyan", "bright_cyan", "bright_cyan", "bright_cyan"]
 
 
 def _build_logo() -> Text:
@@ -76,10 +77,10 @@ def render_banner(
     # Keyboard hint bar
     hints = Text("  ")
     pairs = [
-        ("/help",   "commands"),
-        ("ctrl+r",  "history search"),
-        ("ctrl+c",  "interrupt"),
-        ("ctrl+d",  "exit"),
+        ("/help", "commands"),
+        ("ctrl+r", "history search"),
+        ("ctrl+c", "interrupt"),
+        ("ctrl+d", "exit"),
     ]
     for i, (key, label) in enumerate(pairs):
         if i > 0:
@@ -132,19 +133,19 @@ def render_help_table(console: Console) -> None:
     table.add_column(style="dim")
 
     table.add_row("[bold dim]Commands[/bold dim]", "")
-    table.add_row("/help",    "Show this help")
-    table.add_row("/clear",   "Clear history and screen")
+    table.add_row("/help", "Show this help")
+    table.add_row("/clear", "Clear history and screen")
     table.add_row("/history", "Show conversation history")
-    table.add_row("/status",  "Show current configuration")
-    table.add_row("/model",   "Switch model  · /model gpt-4")
+    table.add_row("/status", "Show current configuration")
+    table.add_row("/model", "Switch model  · /model gpt-4")
     table.add_row("/verbose", "Toggle verbose output")
-    table.add_row("/exit",    "Exit xCode")
+    table.add_row("/exit", "Exit xCode")
     table.add_row("", "")
     table.add_row("[bold dim]Shortcuts[/bold dim]", "")
-    table.add_row("ctrl+r",       "Search command history")
-    table.add_row("ctrl+c",       "Interrupt current task")
-    table.add_row("ctrl+d",       "Exit")
-    table.add_row("\\ + enter",   "Multi-line input")
+    table.add_row("ctrl+r", "Search command history")
+    table.add_row("ctrl+c", "Interrupt current task")
+    table.add_row("ctrl+d", "Exit")
+    table.add_row("\\ + enter", "Multi-line input")
 
     console.print(table)
     console.print()

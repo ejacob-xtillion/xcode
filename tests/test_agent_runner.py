@@ -1,14 +1,15 @@
 """
 Tests for agent_runner module
 """
-import pytest
-from pathlib import Path
+
 from unittest.mock import Mock
+
+import pytest
 from rich.console import Console
 
-from xcode.config import XCodeConfig
 from xcode.agent_runner import AgentRunner
-from xcode.result import XCodeResult
+from xcode.domain.models import AgentResult as XCodeResult
+from xcode.domain.models import XCodeConfig
 
 
 @pytest.fixture
@@ -43,7 +44,7 @@ class TestAgentRunner:
         """Test that run() returns an XCodeResult."""
         runner = AgentRunner(test_config, mock_console)
         result = runner.run()
-        
+
         assert isinstance(result, XCodeResult)
         assert result.task == test_config.task
 
@@ -51,7 +52,7 @@ class TestAgentRunner:
         """Test agent context generation."""
         runner = AgentRunner(test_config, mock_console)
         context = runner._get_agent_context()
-        
+
         assert "schema" in context
         assert "project_name" in context
         assert context["project_name"] == test_config.project_name
@@ -68,7 +69,7 @@ class TestAgentRunner:
         """Test that context includes all required tools."""
         runner = AgentRunner(test_config, mock_console)
         context = runner._get_agent_context()
-        
+
         required_tools = [
             "neo4j_query",
             "read_file",
@@ -77,16 +78,16 @@ class TestAgentRunner:
             "run_tests",
             "run_linter",
         ]
-        
+
         for tool in required_tools:
             assert tool in context["tools"]
 
     def test_verify_result(self, test_config, mock_console):
         """Test result verification."""
         runner = AgentRunner(test_config, mock_console)
-        
+
         success, error = runner._verify_result(["log1", "log2"])
-        
+
         # Stub always returns success
         assert success is True
         assert error is None
@@ -94,12 +95,12 @@ class TestAgentRunner:
     # Note: These tests are disabled as they test the old stub implementation
     # The agent now uses la-factoria API which requires a running server
     # TODO: Add integration tests with mock la-factoria server
-    
+
     # def test_run_stub_returns_success(self, test_config, mock_console):
     #     """Test that stub implementation returns success."""
     #     runner = AgentRunner(test_config, mock_console)
     #     result = runner._run_agent_stub()
-    #     
+    #
     #     assert result.success is True
     #     assert result.task == test_config.task
     #     assert result.iterations > 0
@@ -109,14 +110,14 @@ class TestAgentRunner:
     # def test_run_handles_exceptions(self, test_config, mock_console):
     #     """Test that run() handles exceptions gracefully."""
     #     runner = AgentRunner(test_config, mock_console)
-    #     
+    #
     #     # Mock _run_agent_stub to raise an exception
     #     def raise_error():
     #         raise ValueError("Test error")
-    #     
+    #
     #     runner._run_agent_stub = raise_error
     #     result = runner.run()
-    #     
+    #
     #     assert result.success is False
     #     assert "Test error" in result.error
     #     assert result.task == test_config.task

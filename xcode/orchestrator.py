@@ -1,92 +1,96 @@
 """
-Main orchestrator for xCode - coordinates graph building and agent execution
+Main orchestrator for xCode - coordinates graph building and agent execution.
+
+Refactored to use clean architecture with service layer.
 """
+
+import asyncio
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Optional
 
 from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn
 
-from xcode.config import XCodeConfig
-from xcode.graph_builder import GraphBuilder
-from xcode.agent_runner import AgentRunner
-from xcode.result import XCodeResult
-from xcode.task_classifier import TaskClassifier
+from xcode.domain.models import AgentResult, Task, XCodeConfig
+from xcode.repositories.agent_repository import LaFactoriaAgentRepository
+from xcode.repositories.graph_repository import Neo4jGraphRepository
+from xcode.schema import get_schema
+from xcode.services.agent_service import AgentService
+from xcode.services.graph_service import GraphService
+from xcode.services.task_service import TaskService
 
 
 @dataclass
 class XCodeOrchestrator:
-    """Orchestrates the complete xCode workflow."""
+    """Orchestrates the complete xCode workflow using clean architecture."""
 
     config: XCodeConfig
     console: Console
 
-    def run(self) -> XCodeResult:
+    def __post_init__(self):
+        """Initialize services and repositories."""
+        self.task_service = TaskService()
+
+        graph_repo = Neo4jGraphRepository(
+            console=self.console,
+            verbose=self.config.verbose,
+            enable_descriptions=self.config.xgraph_enable_descriptions,
+        )
+        self.graph_service = GraphService(graph_repo, self.console)
+
+        agent_repo = LaFactoriaAgentRepository(
+            console=self.console,
+            base_url="http://localhost:8000",
+            agent_name="xcode_coding_agent",
+            max_iterations=10,
+        )
+        self.agent_service = AgentService(agent_repo, self.console)
+
+    def run(self) -> AgentResult:
         """
         Execute the complete xCode workflow:
         1. Classify task to determine if graph is needed
         2. Ensure knowledge graph exists (if needed)
-        3. Spawn and run agent with task
+        3. Execute task with agent
         4. Return result
         """
         try:
-            # Step 1: Classify task to determine if graph is needed
-            task_classification = TaskClassifier().classify(self.config.task)
-            
-            # Step 2: Ensure knowledge graph exists (only if needed)
-            if self.config.build_graph:
-                if task_classification.needs_neo4j:
-                    self._ensure_knowledge_graph()
-                else:
-                    if self.config.verbose:
-                        self.console.print(
-                            f"[dim]Skipping graph build for {task_classification.task_type.value} task "
-                            f"(does not require Neo4j)[/dim]"
-                        )
-            elif self.config.verbose:
-                self.console.print("[dim]Skipping graph build (--no-build-graph)[/dim]")
+            task_classification = self.task_service.classify_task(self.config.task)
 
-            # Step 3: Run agent with task
-            result = self._run_agent()
+            if self.config.build_graph and task_classification.needs_neo4j:
+                self.graph_service.ensure_graph_exists(
+                    project_name=self.config.project_name,
+                    repo_path=self.config.repo_path,
+                    language=self.config.language,
+                    verbose=self.config.verbose,
+                )
+            elif self.config.verbose:
+                if not self.config.build_graph:
+                    self.console.print("[dim]Skipping graph build (--no-build-graph)[/dim]")
+                else:
+                    self.console.print(
+                        f"[dim]Skipping graph build for "
+                        f"{task_classification.task_type.value} task "
+                        f"(does not require Neo4j)[/dim]"
+                    )
+
+            task = self.task_service.create_task(self.config.task)
+            schema = get_schema()
+
+            result = asyncio.run(
+                self.agent_service.execute_task(
+                    task=task,
+                    config=self.config,
+                    schema=schema,
+                )
+            )
 
             return result
 
         except Exception as e:
-            return XCodeResult(
+            return AgentResult(
                 success=False,
                 error=str(e),
                 task=self.config.task,
                 iterations=0,
             )
-
-    def _ensure_knowledge_graph(self) -> None:
-        """Ensure the knowledge graph exists for the repository."""
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            console=self.console,
-        ) as progress:
-            task = progress.add_task(
-                f"Building knowledge graph for {self.config.project_name}...",
-                total=None,
-            )
-
-            graph_builder = GraphBuilder(self.config, self.console)
-            graph_builder.build()
-
-            progress.update(task, completed=True)
-
-        if self.config.verbose:
-            self.console.print(
-                f"[green]✓[/green] Knowledge graph built for project: {self.config.project_name}"
-            )
-
-    def _run_agent(self) -> XCodeResult:
-        """Run the agent with the given task."""
-        self.console.print(f"\n[bold]Starting agent for task:[/bold] {self.config.task}\n")
-
-        agent_runner = AgentRunner(self.config, self.console)
-        result = agent_runner.run()
-
-        return result
+        finally:
+            self.graph_service.close()
