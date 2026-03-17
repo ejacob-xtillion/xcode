@@ -1,10 +1,10 @@
 """
 Configuration for xCode CLI
 """
+
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 
 
 @dataclass
@@ -14,10 +14,10 @@ class XCodeConfig:
     task: str
     repo_path: Path
     language: str = "python"
-    project_name: Optional[str] = None
+    project_name: str | None = None
     build_graph: bool = True
-    model: Optional[str] = None
-    llm_endpoint: Optional[str] = None
+    model: str | None = None
+    llm_endpoint: str | None = None
     use_local_llm: bool = False
     verbose: bool = False
 
@@ -35,9 +35,11 @@ class XCodeConfig:
         """
         Finalize configuration after dataclass initialization.
 
-        Resolves any missing values using repository context and environment variables:
+        Resolves any missing values using repository context and environment
+        variables:
         - Sets project_name to the name of repo_path if not provided.
-        - If use_local_llm is True and llm_endpoint is unset, defaults to http://localhost:11434 (Ollama).
+        - If use_local_llm is True and llm_endpoint is unset, defaults to
+          http://localhost:11434 (Ollama).
         - If model is unset, reads XCODE_MODEL from the environment.
         - If llm_endpoint is unset, reads XCODE_LLM_ENDPOINT from the environment.
         - If model remains unset after the above, chooses a default:

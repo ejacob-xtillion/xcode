@@ -1,8 +1,8 @@
 """
 Result object for xCode execution
 """
+
 from dataclasses import dataclass
-from typing import Optional, List
 
 
 @dataclass
@@ -12,8 +12,8 @@ class XCodeResult:
     success: bool
     task: str
     iterations: int
-    error: Optional[str] = None
-    logs: List[str] = None
+    error: str | None = None
+    logs: list[str] = None
 
     def __post_init__(self) -> None:
         if self.logs is None:
