@@ -15,6 +15,8 @@ xCode is a CLI tool inspired by Claude Code that integrates:
 - 🔄 **Verification Loop**: Automatically runs tests and linters, iterates until success
 - 🎯 **Multi-Language**: Supports Python and C#
 - 📊 **Rich CLI**: Beautiful terminal UI with progress indicators
+- 🏗️ **Clean Architecture**: Modular design with domain, service, repository, and infrastructure layers
+- ⚡ **Performance Optimized**: Smart task classification skips unnecessary graph builds
 
 ## Quick Start
 
@@ -154,27 +156,52 @@ xcode --no-build-graph "update API documentation"
 
 ## Project Structure
 
+xCode follows **Clean Architecture** principles with clear separation of concerns:
+
 ```
 xcode/
 ├── xcode/
-│   ├── __init__.py           # Package initialization
-│   ├── cli.py                # CLI entry point
-│   ├── config.py             # Configuration management
-│   ├── orchestrator.py       # Main orchestration logic
-│   ├── graph_builder.py      # xgraph integration
-│   ├── agent_runner.py       # Agent spawning (stub)
-│   ├── schema.py             # Neo4j schema for agents
-│   ├── verification.py       # Test/linter verification loop
-│   └── result.py             # Result dataclass
-├── tests/
-│   ├── test_config.py
-│   ├── test_graph_builder.py
-│   ├── test_agent_runner.py
-│   ├── test_schema.py
-│   └── test_verification.py
-├── pyproject.toml            # Package configuration
-└── README.md                 # This file
+│   ├── domain/              # Pure business logic & interfaces
+│   │   ├── interfaces.py    # Repository contracts (DIP)
+│   │   └── models.py        # Domain model re-exports
+│   │
+│   ├── models/              # Domain model implementations
+│   │   ├── classification.py
+│   │   ├── config.py
+│   │   ├── file_info.py
+│   │   ├── result.py
+│   │   └── task.py
+│   │
+│   ├── services/            # Business logic orchestration
+│   │   ├── task_service.py
+│   │   ├── graph_service.py
+│   │   ├── agent_service.py
+│   │   └── verification_service.py
+│   │
+│   ├── repositories/        # Data access abstractions
+│   │   ├── graph_repository.py
+│   │   ├── file_repository.py
+│   │   └── agent_repository.py
+│   │
+│   ├── infrastructure/      # External system clients
+│   │   ├── neo4j_client.py
+│   │   └── llm_client.py
+│   │
+│   ├── cli.py               # CLI entry point
+│   ├── interactive.py       # Interactive mode
+│   ├── orchestrator.py      # Main orchestration
+│   └── [legacy modules]     # Backward compatibility
+│
+├── tests/                   # 121 tests, 46% coverage
+├── docs/                    # Additional documentation
+│   ├── performance/         # Performance analysis & benchmarks
+│   └── MERGE_CONFLICT_GUIDE.md
+├── ARCHITECTURE.md          # Clean architecture details
+├── pyproject.toml           # Package configuration
+└── README.md                # This file
 ```
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed architecture documentation.
 
 ## Neo4j Schema
 
@@ -252,10 +279,11 @@ mypy xcode
 This project follows a structured SDLC with feature branches:
 
 ```bash
-# Feature branches
-feature/orchestrator-module    # Core orchestration
-feature/agent-integration      # Agent runner and schema
-feature/verification-loop      # Verification and testing
+# Recent feature branches
+feature/rcsr-architecture      # Clean architecture refactoring
+perf/latency-analysis         # Performance optimizations
+feature/file-tree-cache       # File caching system
+feature/smart-recursion-limits # Task classification
 
 # All merged to main via structured commits
 ```

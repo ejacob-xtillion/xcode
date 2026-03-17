@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Clean architecture implementation with 4 distinct layers (domain, service, repository, infrastructure)
+- Domain layer with pure business models and repository interfaces
+- Service layer for business logic orchestration
+- Repository layer with Neo4j, file system, and agent adapters
+- Infrastructure layer with Neo4j and LLM clients
+- Comprehensive architecture documentation (ARCHITECTURE.md)
+- Performance documentation in docs/performance/
+- GitHub Actions CI pipeline with linting, testing, and type checking
+
+### Changed
+- **BREAKING**: Migrated to Python 3.10+ type hints (str | None instead of Optional[str])
+- Refactored all modules to use modern union syntax and remove typing imports
+- Reorganized imports alphabetically across entire codebase
+- Moved domain models to xcode.models package
+- Updated all imports to use domain layer abstractions
+- Improved code formatting and consistency (RCSR pattern)
+- Consolidated performance documentation into docs/performance/
+
+### Fixed
+- Task classification now correctly identifies questions as requiring tools
+- FileTreeCache methods properly integrated into domain models
+- Backward compatibility maintained via result.py and config.py aliases
+
+### Performance
+- Smart task classification skips graph builds for simple tasks (90% latency reduction)
+- File tree caching reduces redundant Neo4j queries
+- Optimized agent context generation
+
 ## [0.1.0] - 2024-01-XX
 
 ### Added
@@ -19,9 +50,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Local LLM support (Ollama, LM Studio, llama.cpp)
 - Cloud LLM support (OpenAI-compatible APIs)
 - Rich CLI with progress indicators and beautiful output
-- Comprehensive test suite (60+ tests, high coverage)
+- Comprehensive test suite (121 tests, 46% coverage)
 - Structured commits with feature branches
 - Full documentation and examples
+- Interactive mode with conversation history
 
 ### Features
 - Multi-language support (Python, C#)
