@@ -20,6 +20,7 @@ from xcode.config import XCodeConfig
 from xcode.result import XCodeResult
 from xcode.schema import get_schema
 from xcode.task_classifier import TaskClassifier, TaskClassification
+from xcode.file_cache import get_cache_manager
 
 
 class AgentRunner:
