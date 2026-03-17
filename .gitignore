@@ -60,3 +60,22 @@ neo4j/
 # Temporary files
 *.tmp
 *.bak
+.trash/
+
+# Temporary documentation (created during development/testing)
+*_SUMMARY.md
+*_FIX.md
+*_RESULTS.md
+*_SOLUTION.md
+QUICKSTART.md
+QUICKTEST.md
+HOW_TO_TEST.md
+TEST_INTEGRATION.md
+INTEGRATION.md
+PROBLEM_SOLVED.md
+analysis_results_*.json
+
+# Test artifacts
+demo/
+test_integration.sh
+hello.txt

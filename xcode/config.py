@@ -32,7 +32,21 @@ class XCodeConfig:
     )
 
     def __post_init__(self) -> None:
-        """Post-initialization processing."""
+        """
+        Finalize configuration after dataclass initialization.
+
+        Resolves any missing values using repository context and environment variables:
+        - Sets project_name to the name of repo_path if not provided.
+        - If use_local_llm is True and llm_endpoint is unset, defaults to http://localhost:11434 (Ollama).
+        - If model is unset, reads XCODE_MODEL from the environment.
+        - If llm_endpoint is unset, reads XCODE_LLM_ENDPOINT from the environment.
+        - If model remains unset after the above, chooses a default:
+          - 'llama3.2' if an LLM endpoint is configured (commonly local).
+          - 'gpt-4' if no endpoint is configured (assumed cloud).
+
+        Returns:
+            None
+        """
         # Set project name to directory name if not specified
         if not self.project_name:
             self.project_name = self.repo_path.name
@@ -61,11 +75,31 @@ class XCodeConfig:
 
     @property
     def is_local_llm(self) -> bool:
-        """Check if using a local LLM."""
+        """
+        Whether an LLM HTTP endpoint is configured.
+
+        Note:
+            This returns True if any llm_endpoint is set (local or remote).
+            When use_local_llm is True and no endpoint is provided, the default
+            is http://localhost:11434.
+
+        Returns:
+            bool: True if an LLM endpoint URL is configured; otherwise False.
+        """
         return bool(self.llm_endpoint)
 
     def get_llm_config(self) -> dict:
-        """Get LLM configuration for agent."""
+        """
+        Build the LLM configuration dictionary for the agent.
+
+        Includes the selected model and, when available, the base_url to reach
+        the LLM server.
+
+        Returns:
+            dict: Configuration compatible with the agent's LLM client. Keys:
+                - 'model' (str): The model identifier.
+                - 'base_url' (str, optional): LLM server URL when using an HTTP endpoint.
+        """
         config = {
             "model": self.model,
         }
