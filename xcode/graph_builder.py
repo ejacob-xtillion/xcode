@@ -1,10 +1,8 @@
 """
 Graph builder module - interfaces with xgraph to build knowledge graphs
 """
+
 import subprocess
-import sys
-from pathlib import Path
-from typing import Optional
 
 from rich.console import Console
 
@@ -82,10 +80,6 @@ class GraphBuilder:
                 self.console.print(result.stdout)
 
         except subprocess.CalledProcessError as e:
-            raise RuntimeError(
-                f"Failed to build knowledge graph via CLI: {e.stderr or e.stdout}"
-            )
+            raise RuntimeError(f"Failed to build knowledge graph via CLI: {e.stderr or e.stdout}")
         except FileNotFoundError:
-            raise RuntimeError(
-                "xgraph CLI not found. Please install xgraph: pip install xgraph"
-            )
+            raise RuntimeError("xgraph CLI not found. Please install xgraph: pip install xgraph")

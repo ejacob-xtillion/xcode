@@ -1,16 +1,15 @@
 """
 Main orchestrator for xCode - coordinates graph building and agent execution
 """
+
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Optional
 
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
+from xcode.agent_runner import AgentRunner
 from xcode.config import XCodeConfig
 from xcode.graph_builder import GraphBuilder
-from xcode.agent_runner import AgentRunner
 from xcode.result import XCodeResult
 from xcode.task_classifier import TaskClassifier
 
@@ -33,7 +32,7 @@ class XCodeOrchestrator:
         try:
             # Step 1: Classify task to determine if graph is needed
             task_classification = TaskClassifier().classify(self.config.task)
-            
+
             # Step 2: Ensure knowledge graph exists (only if needed)
             if self.config.build_graph:
                 if task_classification.needs_neo4j:
@@ -41,7 +40,8 @@ class XCodeOrchestrator:
                 else:
                     if self.config.verbose:
                         self.console.print(
-                            f"[dim]Skipping graph build for {task_classification.task_type.value} task "
+                            f"[dim]Skipping graph build for "
+                            f"{task_classification.task_type.value} task "
                             f"(does not require Neo4j)[/dim]"
                         )
             elif self.config.verbose:
