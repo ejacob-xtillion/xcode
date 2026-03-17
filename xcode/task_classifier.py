@@ -10,7 +10,6 @@ This module classifies tasks to determine:
 import re
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
 
 
 class TaskType(Enum):
@@ -19,8 +18,7 @@ class TaskType(Enum):
     # Simple operations (1-3 files, no Neo4j needed)
     CREATE_NEW_FILE = "create_new_file"
     DELETE_FILES = "delete_files"
-    READ_FILE = "read_file"
-    
+
     # Medium operations (3-10 files, limited Neo4j)
     MODIFY_EXISTING = "modify_existing"
     ADD_FEATURE = "add_feature"
@@ -36,7 +34,6 @@ class TaskType(Enum):
     # Non-coding operations (no tools needed)
     GREETING = "greeting"
     QUESTION = "question"
-    CLARIFICATION = "clarification"
     
     # Unknown (use conservative defaults)
     UNKNOWN = "unknown"
@@ -56,10 +53,7 @@ class TaskClassification:
     @property
     def should_use_tools(self) -> bool:
         """Whether this task requires any tools."""
-        return self.task_type not in [
-            TaskType.GREETING,
-            TaskType.CLARIFICATION,
-        ]
+        return self.task_type != TaskType.GREETING
 
 
 class TaskClassifier:

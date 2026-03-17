@@ -101,11 +101,16 @@ class AgentRunner:
                 iterations=0,
                 error=error_msg,
             )
-        
+
+        # Classify task and adjust execution parameters
+        classification = TaskClassifier().classify(self.config.task)
+        self.max_iterations = classification.max_iterations
+        self._show_classification(classification)
+
         # Build the context-rich query for the agent
         schema_text = get_schema()
         query = self._build_agent_query(schema_text, conversation_context)
-        
+
         # Show configuration
         self._show_config()
         
