@@ -5,12 +5,8 @@ Tests for file caching system.
 import json
 import time
 
-from xcode.file_cache import (
-    FileCacheManager,
-    FileInfo,
-    FileTreeCache,
-    get_cache_manager,
-)
+from xcode.domain.models import FileInfo, FileTreeCache
+from xcode.file_cache import FileCacheManager, get_cache_manager
 
 
 class TestFileInfo:

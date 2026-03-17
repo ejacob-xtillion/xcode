@@ -36,4 +36,4 @@ class TaskClassification:
     @property
     def should_use_tools(self) -> bool:
         """Whether this task requires any tools."""
-        return self.task_type not in {TaskType.GREETING, TaskType.QUESTION}
+        return self.task_type != TaskType.GREETING
