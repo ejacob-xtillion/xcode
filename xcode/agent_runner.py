@@ -19,6 +19,7 @@ from rich.table import Table
 from xcode.config import XCodeConfig
 from xcode.result import XCodeResult
 from xcode.schema import get_schema
+from xcode.task_classifier import TaskClassifier, TaskClassification
 
 
 class AgentRunner:
@@ -272,6 +273,21 @@ Please complete the task now.""")
             ),
             title="[bold]Agent Configuration[/bold]",
             border_style="cyan"
+        ))
+    
+    def _show_classification(self, classification: TaskClassification):
+        """Show task classification information."""
+        self.console.print(Panel(
+            Text.from_markup(
+                f"[yellow]Task Type:[/yellow] {classification.task_type.value}\n"
+                f"[yellow]Confidence:[/yellow] {classification.confidence:.0%}\n"
+                f"[yellow]Max Files:[/yellow] {classification.max_files_to_read}\n"
+                f"[yellow]Needs Neo4j:[/yellow] {classification.needs_neo4j}\n"
+                f"[yellow]Max Iterations:[/yellow] {classification.max_iterations}\n"
+                f"[yellow]Strategy:[/yellow] {classification.suggested_strategy}"
+            ),
+            title="[bold]Task Classification[/bold]",
+            border_style="yellow"
         ))
     
     def _handle_event(self, event: dict, logs: list[str]) -> None:
