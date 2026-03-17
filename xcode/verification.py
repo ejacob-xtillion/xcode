@@ -3,20 +3,11 @@ Verification loop - captures logs and passes them back to the agent
 """
 
 import subprocess
-from dataclasses import dataclass
 from pathlib import Path
 
 from rich.console import Console
 
-
-@dataclass
-class VerificationResult:
-    """Result of running verification checks."""
-
-    success: bool
-    checks_run: list[str]
-    output: str
-    error: str | None = None
+from xcode.domain.models import VerificationResult
 
 
 class VerificationLoop:

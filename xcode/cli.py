@@ -14,8 +14,8 @@ from rich.console import Console
 from rich.text import Text
 
 from xcode.banner import render_compact_header
-from xcode.config import XCodeConfig
-from xcode.orchestrator import XCodeOrchestrator
+from xcode.domain.models import XCodeConfig
+from xcode.orchestrator_new import XCodeOrchestrator
 
 # Load environment variables
 load_dotenv()
@@ -123,8 +123,21 @@ def main(
             from xcode.interactive import InteractiveSession
 
             if config.build_graph:
-                orchestrator = XCodeOrchestrator(config, console)
-                orchestrator._ensure_knowledge_graph()
+                from xcode.repositories.graph_repository import Neo4jGraphRepository
+                from xcode.services.graph_service import GraphService
+
+                graph_repo = Neo4jGraphRepository(
+                    console=console,
+                    verbose=config.verbose,
+                    enable_descriptions=config.xgraph_enable_descriptions,
+                )
+                graph_service = GraphService(graph_repo, console)
+                graph_service.ensure_graph_exists(
+                    project_name=config.project_name,
+                    repo_path=config.repo_path,
+                    language=config.language,
+                    verbose=config.verbose,
+                )
 
             session = InteractiveSession(config, console)
             session.run()

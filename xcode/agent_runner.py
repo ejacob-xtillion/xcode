@@ -13,11 +13,11 @@ from rich.syntax import Syntax
 from rich.text import Text
 from rich.tree import Tree
 
-from xcode.config import XCodeConfig
+from xcode.domain.models import TaskClassification, TaskType, XCodeConfig
 from xcode.file_cache import get_cache_manager
 from xcode.result import XCodeResult
 from xcode.schema import get_schema
-from xcode.task_classifier import TaskClassification, TaskClassifier, TaskType
+from xcode.task_classifier import TaskClassifier
 
 
 class AgentRunner:

@@ -6,7 +6,7 @@ import subprocess
 
 from rich.console import Console
 
-from xcode.config import XCodeConfig
+from xcode.domain.models import XCodeConfig
 
 
 class GraphBuilder:

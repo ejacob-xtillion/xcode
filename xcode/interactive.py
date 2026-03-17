@@ -17,7 +17,7 @@ from rich.text import Text
 
 from xcode.agent_runner import AgentRunner
 from xcode.banner import render_banner, render_help_table
-from xcode.config import XCodeConfig
+from xcode.domain.models import XCodeConfig
 
 # Slash commands available for tab-completion
 _COMMANDS = [
