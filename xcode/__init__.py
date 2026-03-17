@@ -6,3 +6,6 @@ with la-factoria (on-the-fly agents) and Neo4j MCP for intelligent code assistan
 """
 
 __version__ = "0.1.0"
+
+# Re-export utilities for convenience
+from .utils import add, subtract, multiply, divide, calculate  # noqa: F401
