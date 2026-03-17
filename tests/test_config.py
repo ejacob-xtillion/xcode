@@ -1,9 +1,6 @@
 """
 Tests for config module
 """
-import os
-import pytest
-from pathlib import Path
 
 from xcode.config import XCodeConfig
 
@@ -18,7 +15,7 @@ class TestXCodeConfig:
             repo_path=tmp_path,
             language="python",
         )
-        
+
         assert config.task == "test task"
         assert config.repo_path == tmp_path
         assert config.language == "python"
@@ -30,7 +27,7 @@ class TestXCodeConfig:
             task="test",
             repo_path=tmp_path,
         )
-        
+
         assert config.project_name == tmp_path.name
 
     def test_project_name_can_be_set(self, tmp_path):
@@ -40,7 +37,7 @@ class TestXCodeConfig:
             repo_path=tmp_path,
             project_name="custom-name",
         )
-        
+
         assert config.project_name == "custom-name"
 
     def test_local_llm_flag_sets_endpoint(self, tmp_path):
@@ -50,7 +47,7 @@ class TestXCodeConfig:
             repo_path=tmp_path,
             use_local_llm=True,
         )
-        
+
         assert config.llm_endpoint == "http://localhost:11434"
         assert config.is_local_llm is True
 
@@ -61,7 +58,7 @@ class TestXCodeConfig:
             repo_path=tmp_path,
             llm_endpoint="http://localhost:8080",
         )
-        
+
         assert config.llm_endpoint == "http://localhost:8080"
         assert config.is_local_llm is True
 
@@ -73,7 +70,7 @@ class TestXCodeConfig:
             repo_path=tmp_path,
         )
         assert config_cloud.model == "gpt-5"
-        
+
         # Local default
         config_local = XCodeConfig(
             task="test",
@@ -89,7 +86,7 @@ class TestXCodeConfig:
             repo_path=tmp_path,
             model="codellama",
         )
-        
+
         assert config.model == "codellama"
 
     def test_get_llm_config_cloud(self, tmp_path):
@@ -99,7 +96,7 @@ class TestXCodeConfig:
             repo_path=tmp_path,
             model="gpt-5",
         )
-        
+
         llm_config = config.get_llm_config()
         assert llm_config["model"] == "gpt-5"
         assert "base_url" not in llm_config
@@ -112,7 +109,7 @@ class TestXCodeConfig:
             use_local_llm=True,
             model="llama3.2",
         )
-        
+
         llm_config = config.get_llm_config()
         assert llm_config["model"] == "llama3.2"
         assert llm_config["base_url"] == "http://localhost:11434"
@@ -123,7 +120,7 @@ class TestXCodeConfig:
             task="test",
             repo_path=tmp_path,
         )
-        
+
         assert config.neo4j_uri
         assert config.neo4j_user
         assert config.neo4j_password
@@ -132,11 +129,11 @@ class TestXCodeConfig:
         """Test environment variable loading."""
         monkeypatch.setenv("XCODE_MODEL", "custom-model")
         monkeypatch.setenv("XCODE_LLM_ENDPOINT", "http://custom:1234")
-        
+
         config = XCodeConfig(
             task="test",
             repo_path=tmp_path,
         )
-        
+
         assert config.model == "custom-model"
         assert config.llm_endpoint == "http://custom:1234"
