@@ -68,10 +68,16 @@ def calculate(a: Number, b: Number, operation: str) -> Number:
     return _OPERATION_MAP[op](a, b)
 
 
+def hello_world() -> str:
+    """Return a friendly 'Hello, world!' greeting."""
+    return "Hello, world!"
+
+
 __all__ = [
     "add",
     "subtract",
     "multiply",
     "divide",
     "calculate",
+    "hello_world",
 ]
