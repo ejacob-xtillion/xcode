@@ -74,6 +74,7 @@ TEST_INTEGRATION.md
 INTEGRATION.md
 PROBLEM_SOLVED.md
 analysis_results_*.json
+benchmark_results.json
 
 # Test artifacts
 demo/
