@@ -14,9 +14,9 @@ import pytest
 from rich.console import Console
 
 from xcode.agent_runner import AgentRunner
-from xcode.config import XCodeConfig
+from xcode.domain.models import TaskType, XCodeConfig
 from xcode.orchestrator import XCodeOrchestrator
-from xcode.task_classifier import TaskClassifier, TaskType
+from xcode.task_classifier import TaskClassifier
 
 
 class TestPriority1Optimizations:

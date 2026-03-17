@@ -2,7 +2,8 @@
 Tests for task classification system.
 """
 
-from xcode.task_classifier import TaskClassification, TaskClassifier, TaskType
+from xcode.domain.models import TaskClassification, TaskType
+from xcode.task_classifier import TaskClassifier
 
 
 class TestTaskClassifier:

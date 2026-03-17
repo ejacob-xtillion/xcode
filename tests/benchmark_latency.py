@@ -20,7 +20,7 @@ from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
-from xcode.config import XCodeConfig
+from xcode.domain.models import XCodeConfig
 from xcode.graph_builder import GraphBuilder
 from xcode.task_classifier import TaskClassifier
 

@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch
 import pytest
 from rich.console import Console
 
-from xcode.config import XCodeConfig
+from xcode.domain.models import XCodeConfig
 from xcode.graph_builder import GraphBuilder
 
 
