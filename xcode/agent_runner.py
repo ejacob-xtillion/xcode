@@ -19,7 +19,7 @@ from rich.table import Table
 from xcode.config import XCodeConfig
 from xcode.result import XCodeResult
 from xcode.schema import get_schema
-from xcode.task_classifier import TaskClassifier, TaskClassification
+from xcode.task_classifier import TaskClassifier, TaskClassification, TaskType
 from xcode.file_cache import get_cache_manager
 
 
@@ -130,7 +130,7 @@ class AgentRunner:
         try:
             self.console.print(f"\n[bold cyan]🤖 Connecting to la-factoria agent...[/bold cyan]")
             
-            async with httpx.AsyncClient(timeout=300.0) as client:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(30.0)) as client:
                 # Stream agent execution
                 async with client.stream(
                     "POST",
@@ -218,6 +218,15 @@ class AgentRunner:
             query_parts.append(conversation_context)
             query_parts.append("\n---\n")
         
+        # Classify task to determine if file tree should be included
+        classification = TaskClassifier().classify(self.config.task)
+        file_operation_tasks = [
+            TaskType.CREATE_NEW_FILE,
+            TaskType.MODIFY_EXISTING,
+            TaskType.DELETE_FILES,
+            TaskType.REFACTOR,
+        ]
+        
         # Add current task
         query_parts.append(f"""You are a coding assistant working on a codebase.
 
@@ -227,7 +236,18 @@ class AgentRunner:
 - Path: {self.config.repo_path}
 - Project: {self.config.project_name}
 - Language: {self.config.language}
-
+""")
+        
+        # Include file tree for file operation tasks
+        if classification.task_type in file_operation_tasks:
+            file_tree = self._get_file_cache()
+            if file_tree:
+                query_parts.append(f"""
+**Available files in repository:**
+{file_tree}
+""")
+        
+        query_parts.append(f"""
 **Knowledge Graph:**
 You have access to a Neo4j knowledge graph containing the complete codebase structure.
 Use the neo4j_query tool to understand code relationships, find dependencies, and locate relevant code.
@@ -488,6 +508,72 @@ Please complete the task now.""")
                 tool_branch.add(f"[dim]... and {len(calls) - 3} more[/dim]")
         
         self.console.print(tree)
+    
+    def _get_file_cache(self) -> Optional[str]:
+        """
+        Get a tree view of the file cache for the repository.
+        
+        Returns:
+            Formatted file tree string, or None if cache unavailable
+        """
+        try:
+            cache_manager = get_cache_manager()
+            cache = cache_manager.get_or_create_cache(
+                project_name=self.config.project_name,
+                repo_path=self.config.repo_path,
+            )
+            
+            # Build a tree view of files
+            tree_lines = []
+            
+            # Group files by directory
+            from collections import defaultdict
+            files_by_dir = defaultdict(list)
+            
+            for file_info in cache.list_all_files():
+                # Get relative path from repo root
+                try:
+                    rel_path = Path(file_info.path).relative_to(self.config.repo_path)
+                    parent = str(rel_path.parent) if rel_path.parent != Path('.') else '.'
+                    files_by_dir[parent].append(rel_path.name)
+                except ValueError:
+                    # File is outside repo path, skip
+                    continue
+            
+            # Sort directories and create tree
+            sorted_dirs = sorted(files_by_dir.keys())
+            
+            # Limit to first 100 directories to avoid overwhelming the prompt
+            max_dirs = 100
+            if len(sorted_dirs) > max_dirs:
+                sorted_dirs = sorted_dirs[:max_dirs]
+                tree_lines.append(f"(Showing first {max_dirs} directories of {len(files_by_dir)})")
+            
+            for directory in sorted_dirs:
+                if directory == '.':
+                    tree_lines.append(".")
+                else:
+                    tree_lines.append(f"{directory}/")
+                
+                # Sort files and limit to first 20 per directory
+                files = sorted(files_by_dir[directory])
+                max_files = 20
+                if len(files) > max_files:
+                    files = files[:max_files]
+                    for fname in files:
+                        tree_lines.append(f"  {fname}")
+                    tree_lines.append(f"  ... ({len(files_by_dir[directory]) - max_files} more files)")
+                else:
+                    for fname in files:
+                        tree_lines.append(f"  {fname}")
+            
+            return "\n".join(tree_lines)
+            
+        except Exception as e:
+            # If cache fails, return None (non-critical)
+            if self.config.verbose:
+                self.console.print(f"[yellow]Warning: Could not build file cache: {e}[/yellow]")
+            return None
     
     def _get_agent_context(self) -> dict:
         """
