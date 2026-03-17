@@ -73,6 +73,10 @@ HOW_TO_TEST.md
 TEST_INTEGRATION.md
 INTEGRATION.md
 PROBLEM_SOLVED.md
+CHANGELOG.md
+FUNCTIONAL_TEST_REPORT.md
+
+# Analysis and benchmark results
 analysis_results_*.json
 benchmark_results.json
 
@@ -80,3 +84,10 @@ benchmark_results.json
 demo/
 test_integration.sh
 hello.txt
+
+# Cache directories
+.ruff_cache/
+.benchmarks/
+
+# Build artifacts
+*.egg-info/
