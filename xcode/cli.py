@@ -10,9 +10,10 @@ from typing import Optional
 
 import click
 from rich.console import Console
-from rich.panel import Panel
+from rich.text import Text
 from dotenv import load_dotenv
 
+from xcode.banner import render_banner, render_compact_header
 from xcode.config import XCodeConfig
 from xcode.orchestrator import XCodeOrchestrator
 
@@ -104,12 +105,10 @@ def main(
         xcode --local --model llama3.2 "refactor code" # Single-shot with local LLM
     """
     try:
-        # Determine mode: interactive if no task provided or --interactive flag
         use_interactive = interactive or task is None
-        
-        # Build configuration
+
         config = XCodeConfig(
-            task=task or "",  # Empty task for interactive mode
+            task=task or "",
             repo_path=Path(path),
             language=language,
             project_name=project_name,
@@ -119,59 +118,56 @@ def main(
             use_local_llm=local,
             verbose=verbose,
         )
-        
+
         if use_interactive:
-            # Import here to avoid slow startup for single-shot mode
             from xcode.interactive import InteractiveSession
-            
-            # Build graph first if needed
+
             if config.build_graph:
                 orchestrator = XCodeOrchestrator(config, console)
                 orchestrator._ensure_knowledge_graph()
-            
-            # Start interactive session
+
             session = InteractiveSession(config, console)
             session.run()
             sys.exit(0)
-        
-        # Single-shot mode (existing behavior)
-        if not verbose:
-            console.print(
-                Panel.fit(
-                    "[bold cyan]xCode[/bold cyan] - AI Coding Assistant\n"
-                    f"[dim]Task: {task}[/dim]",
-                    border_style="cyan",
-                )
-            )
 
+        # ── Single-shot mode ──────────────────────────────────────────────
+        render_compact_header(
+            console,
+            task=task,
+            repo_path=config.repo_path,
+            model=config.model,
+        )
 
         if verbose:
-            console.print(f"[dim]Configuration:[/dim]")
-            console.print(f"  Repository: {config.repo_path}")
-            console.print(f"  Language: {config.language}")
-            console.print(f"  Project: {config.project_name}")
-            console.print(f"  Build graph: {config.build_graph}")
-            console.print(f"  Model: {config.model or 'default'}")
+            console.print(Text("  Configuration", style="dim"))
+            console.print(Text(f"    language  {config.language}", style="dim"))
+            console.print(Text(f"    project   {config.project_name}", style="dim"))
+            console.print(Text(f"    graph     {'skip' if not config.build_graph else 'build'}", style="dim"))
             if config.llm_endpoint:
-                console.print(f"  LLM endpoint: {config.llm_endpoint}")
+                console.print(Text(f"    endpoint  {config.llm_endpoint}", style="dim"))
             console.print()
 
-        # Run orchestrator
         orchestrator = XCodeOrchestrator(config, console)
         result = orchestrator.run()
 
         if result.success:
-            console.print("\n[bold green]✓[/bold green] Task completed successfully!")
+            done = Text()
+            done.append("\n  ✓ ", style="bold green")
+            done.append("Task completed successfully", style="green")
+            console.print(done)
             sys.exit(0)
         else:
-            console.print(f"\n[bold red]✗[/bold red] Task failed: {result.error}")
+            fail = Text()
+            fail.append("\n  ✗ ", style="bold red")
+            fail.append(f"Task failed: {result.error}", style="red")
+            console.print(fail)
             sys.exit(1)
 
     except KeyboardInterrupt:
-        console.print("\n[yellow]⚠[/yellow] Interrupted by user")
+        console.print(Text("\n  ⚠  Interrupted", style="yellow"))
         sys.exit(130)
     except Exception as e:
-        console.print(f"\n[bold red]Error:[/bold red] {e}")
+        console.print(Text(f"\n  ✗  {e}", style="bold red"))
         if verbose:
             console.print_exception()
         sys.exit(1)
