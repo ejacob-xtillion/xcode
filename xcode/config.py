@@ -42,7 +42,7 @@ class XCodeConfig:
         - If llm_endpoint is unset, reads XCODE_LLM_ENDPOINT from the environment.
         - If model remains unset after the above, chooses a default:
           - 'llama3.2' if an LLM endpoint is configured (commonly local).
-          - 'gpt-4' if no endpoint is configured (assumed cloud).
+          - 'gpt-5' if no endpoint is configured (assumed cloud).
 
         Returns:
             None
@@ -71,7 +71,7 @@ class XCodeConfig:
                 self.model = "llama3.2"
             else:
                 # Cloud LLM default
-                self.model = "gpt-4"
+                self.model = "gpt-5"
 
     @property
     def is_local_llm(self) -> bool:

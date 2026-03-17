@@ -72,7 +72,7 @@ class TestXCodeConfig:
             task="test",
             repo_path=tmp_path,
         )
-        assert config_cloud.model == "gpt-4"
+        assert config_cloud.model == "gpt-5"
         
         # Local default
         config_local = XCodeConfig(
@@ -97,11 +97,11 @@ class TestXCodeConfig:
         config = XCodeConfig(
             task="test",
             repo_path=tmp_path,
-            model="gpt-4",
+            model="gpt-5",
         )
         
         llm_config = config.get_llm_config()
-        assert llm_config["model"] == "gpt-4"
+        assert llm_config["model"] == "gpt-5"
         assert "base_url" not in llm_config
 
     def test_get_llm_config_local(self, tmp_path):
