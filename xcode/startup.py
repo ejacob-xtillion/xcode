@@ -169,7 +169,7 @@ class StartupOrchestrator:
         )
         
         task_id = progress.add_task(
-            "Building knowledge graph...",
+            f"Indexing codebase ({self.state.files_processed}/{self.state.total_files} files)...",
             total=100,
         )
 
@@ -220,6 +220,24 @@ class StartupOrchestrator:
         try:
             # Estimate total files for progress tracking
             self.state.total_files = self._estimate_file_count()
+            
+            # Simulate progress during build (since we can't get real-time updates from xgraph)
+            # We'll update the counter smoothly to give visual feedback
+            import threading
+            
+            def simulate_progress():
+                """Smoothly increment progress while build is running."""
+                while not self.state.graph_complete and not self.state.graph_error:
+                    if self.state.files_processed < self.state.total_files:
+                        # Increment slowly to show activity
+                        self.state.files_processed = min(
+                            self.state.files_processed + 1,
+                            self.state.total_files - 1  # Leave last file for actual completion
+                        )
+                    time.sleep(0.5)  # Update every 0.5 seconds
+            
+            progress_thread = threading.Thread(target=simulate_progress, daemon=True)
+            progress_thread.start()
             
             # Use subprocess to capture and parse xgraph output
             self._build_via_subprocess()
