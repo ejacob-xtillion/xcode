@@ -17,6 +17,7 @@ from rich.console import Console
 from rich.live import Live
 from rich.markdown import Markdown
 from rich.panel import Panel
+from rich.spinner import Spinner
 from rich.text import Text
 
 
@@ -105,8 +106,8 @@ class StartupOrchestrator:
             )
             self._build_thread.start()
 
-            # Wait for graph to complete (with timeout)
-            self._build_thread.join(timeout=300)  # 5 minute max
+            # Show loading state while graph builds
+            self._show_loading_state()
 
             if self.state.graph_error and self.verbose:
                 self.console.print(
@@ -157,6 +158,19 @@ class StartupOrchestrator:
         
         self.console.print()
 
+    def _show_loading_state(self) -> None:
+        """Show loading spinner while graph builds."""
+        spinner = Spinner("dots", text="[cyan]Preparing your workspace...[/cyan]")
+        
+        with Live(spinner, console=self.console, refresh_per_second=10):
+            # Wait for graph to complete (with timeout)
+            if self._build_thread:
+                self._build_thread.join(timeout=300)  # 5 minute max
+        
+        # Show completion
+        if self.state.graph_complete:
+            self.console.print("[green]✓[/green] [dim]Workspace ready![/dim]")
+        self.console.print()
 
     def _build_graph_background(self) -> None:
         """Build the knowledge graph silently in a background thread."""
