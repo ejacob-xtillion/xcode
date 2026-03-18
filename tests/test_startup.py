@@ -20,8 +20,6 @@ class TestStartupState:
         assert state.graph_building is False
         assert state.graph_complete is False
         assert state.graph_error is None
-        assert state.files_processed == 0
-        assert state.total_files == 0
 
 
 class TestStartupOrchestrator:
@@ -53,53 +51,10 @@ class TestStartupOrchestrator:
         assert orchestrator.enable_descriptions is False
         assert isinstance(orchestrator.state, StartupState)
 
-    def test_show_simple_welcome(self, orchestrator, console):
-        """Test simple welcome screen without graph building."""
-        orchestrator._show_simple_welcome()
+    def test_show_intro_message(self, orchestrator, console):
+        """Test intro message display."""
+        orchestrator._show_intro_message()
         # Should not raise any exceptions
-
-    def test_estimate_file_count_empty_directory(self, orchestrator):
-        """Test file count estimation on empty directory."""
-        count = orchestrator._estimate_file_count()
-        assert count >= 1  # Should return at least 1
-
-    def test_estimate_file_count_with_files(self, orchestrator, tmp_path):
-        """Test file count estimation with Python files."""
-        # Create some test files
-        (tmp_path / "test1.py").touch()
-        (tmp_path / "test2.py").touch()
-        (tmp_path / "test3.py").touch()
-        
-        count = orchestrator._estimate_file_count()
-        assert count == 3
-
-    def test_estimate_file_count_excludes_hidden(self, orchestrator, tmp_path):
-        """Test that hidden directories are excluded from count."""
-        # Create files in hidden directory
-        hidden_dir = tmp_path / ".hidden"
-        hidden_dir.mkdir()
-        (hidden_dir / "test.py").touch()
-        
-        # Create normal file
-        (tmp_path / "test.py").touch()
-        
-        count = orchestrator._estimate_file_count()
-        assert count == 1  # Should only count the non-hidden file
-
-    def test_estimate_file_count_excludes_common_dirs(self, orchestrator, tmp_path):
-        """Test that common excluded directories are ignored."""
-        excluded_dirs = ["__pycache__", "node_modules", "venv", ".venv"]
-        
-        for dir_name in excluded_dirs:
-            dir_path = tmp_path / dir_name
-            dir_path.mkdir()
-            (dir_path / "test.py").touch()
-        
-        # Create normal file
-        (tmp_path / "test.py").touch()
-        
-        count = orchestrator._estimate_file_count()
-        assert count == 1  # Should only count the non-excluded file
 
     def test_start_without_graph_build(self, orchestrator):
         """Test starting without building graph."""
@@ -142,20 +97,3 @@ class TestStartupOrchestrator:
         assert orchestrator.state.graph_building is False
         assert orchestrator.state.graph_error == "Test error"
 
-    def test_csharp_file_estimation(self, console, tmp_path):
-        """Test file count estimation for C# projects."""
-        orchestrator = StartupOrchestrator(
-            console=console,
-            project_name="test_project",
-            repo_path=tmp_path,
-            language="csharp",
-            verbose=False,
-            enable_descriptions=False,
-        )
-        
-        # Create Python and C# files
-        (tmp_path / "test.py").touch()
-        (tmp_path / "test.cs").touch()
-        
-        count = orchestrator._estimate_file_count()
-        assert count == 2  # Should count both .py and .cs for csharp language
