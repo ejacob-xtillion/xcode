@@ -14,8 +14,9 @@ from rich.console import Console
 from rich.text import Text
 
 from xcode.banner import render_compact_header
-from xcode.domain.models import XCodeConfig
-from xcode.orchestrator import XCodeOrchestrator
+from xcode.container import create_container
+from xcode.models import XCodeConfig
+from xcode.requests import CLIRequestHandler
 
 # Load environment variables
 load_dotenv()
@@ -120,23 +121,9 @@ def main(
         )
 
         if use_interactive:
-            from xcode.interactive import InteractiveSession
-            from xcode.startup import StartupOrchestrator
-
-            # Show welcome screen while building graph in background
-            startup = StartupOrchestrator(
-                console=console,
-                project_name=config.project_name,
-                repo_path=config.repo_path,
-                language=config.language,
-                verbose=config.verbose,
-                enable_descriptions=config.xgraph_enable_descriptions,
-            )
-            startup.start_with_welcome(build_graph=config.build_graph)
-
-            session = InteractiveSession(config, console)
-            session.run()
-            sys.exit(0)
+            console.print("[yellow]Interactive mode not yet implemented in RCSR architecture[/yellow]")
+            console.print("[dim]Use single-shot mode: xcode \"your task here\"[/dim]")
+            sys.exit(1)
 
         # ── Single-shot mode ──────────────────────────────────────────────
         render_compact_header(
@@ -157,21 +144,21 @@ def main(
                 console.print(Text(f"    endpoint  {config.llm_endpoint}", style="dim"))
             console.print()
 
-        orchestrator = XCodeOrchestrator(config, console)
-        result = orchestrator.run()
+        # Create DI container and handler
+        container = create_container(config, console)
+        handler = CLIRequestHandler(container)
+        
+        # Execute task
+        result = handler.handle(
+            task_description=task,
+            repo_path=config.repo_path,
+            language=config.language,
+            project_name=config.project_name,
+            build_graph=config.build_graph,
+            verbose=verbose,
+        )
 
-        if result.success:
-            done = Text()
-            done.append("\n  ✓ ", style="bold green")
-            done.append("Task completed successfully", style="green")
-            console.print(done)
-            sys.exit(0)
-        else:
-            fail = Text()
-            fail.append("\n  ✗ ", style="bold red")
-            fail.append(f"Task failed: {result.error}", style="red")
-            console.print(fail)
-            sys.exit(1)
+        sys.exit(0 if result.success else 1)
 
     except KeyboardInterrupt:
         console.print(Text("\n  ⚠  Interrupted", style="yellow"))

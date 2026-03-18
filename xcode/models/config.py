@@ -1,10 +1,10 @@
 """
-Configuration models for xCode.
+Configuration model for xCode.
 """
-
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Optional
 
 
 @dataclass
@@ -14,17 +14,19 @@ class XCodeConfig:
     task: str
     repo_path: Path
     language: str = "python"
-    project_name: str | None = None
+    project_name: Optional[str] = None
     build_graph: bool = True
-    model: str | None = None
-    llm_endpoint: str | None = None
+    model: Optional[str] = None
+    llm_endpoint: Optional[str] = None
     use_local_llm: bool = False
     verbose: bool = False
 
+    # Neo4j configuration (from environment)
     neo4j_uri: str = field(default_factory=lambda: os.getenv("NEO4J_URI", "bolt://localhost:7687"))
     neo4j_user: str = field(default_factory=lambda: os.getenv("NEO4J_USER", "neo4j"))
     neo4j_password: str = field(default_factory=lambda: os.getenv("NEO4J_PASSWORD", "password"))
 
+    # xgraph configuration
     xgraph_enable_descriptions: bool = field(
         default_factory=lambda: os.getenv("XGRAPH_ENABLE_DESCRIPTIONS", "false").lower() == "true"
     )
@@ -33,11 +35,9 @@ class XCodeConfig:
         """
         Finalize configuration after dataclass initialization.
 
-        Resolves any missing values using repository context and environment
-        variables:
+        Resolves any missing values using repository context and environment variables:
         - Sets project_name to the name of repo_path if not provided.
-        - If use_local_llm is True and llm_endpoint is unset, defaults to
-          http://localhost:11434 (Ollama).
+        - If use_local_llm is True and llm_endpoint is unset, defaults to http://localhost:11434 (Ollama).
         - If model is unset, reads XCODE_MODEL from the environment.
         - If llm_endpoint is unset, reads XCODE_LLM_ENDPOINT from the environment.
         - If model remains unset after the above, chooses a default:
@@ -47,22 +47,30 @@ class XCodeConfig:
         Returns:
             None
         """
+        # Set project name to directory name if not specified
         if not self.project_name:
             self.project_name = self.repo_path.name
 
+        # Handle local LLM configuration
         if self.use_local_llm and not self.llm_endpoint:
+            # Default to Ollama
             self.llm_endpoint = "http://localhost:11434"
 
+        # Get model from environment if not specified
         if not self.model:
             self.model = os.getenv("XCODE_MODEL")
 
+        # Get LLM endpoint from environment if not specified
         if not self.llm_endpoint:
             self.llm_endpoint = os.getenv("XCODE_LLM_ENDPOINT")
 
+        # Set default model based on endpoint type
         if not self.model:
             if self.llm_endpoint:
+                # Local LLM default
                 self.model = "llama3.2"
             else:
+                # Cloud LLM default
                 self.model = "gpt-5"
 
     @property

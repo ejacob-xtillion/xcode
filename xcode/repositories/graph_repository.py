@@ -1,7 +1,6 @@
 """
-Neo4j graph repository implementation.
+Graph repository for knowledge graph building.
 """
-
 import subprocess
 from pathlib import Path
 
@@ -10,32 +9,42 @@ from rich.console import Console
 from xcode.domain.interfaces import GraphRepository
 
 
-class Neo4jGraphRepository(GraphRepository):
-    """Neo4j implementation of GraphRepository."""
-
-    def __init__(
-        self,
-        console: Console,
-        verbose: bool = False,
-        enable_descriptions: bool = False,
-    ):
+class XGraphRepository(GraphRepository):
+    """
+    xgraph implementation of graph repository.
+    
+    Builds knowledge graphs using the xgraph library.
+    """
+    
+    def __init__(self, console: Console, verbose: bool = False, enable_descriptions: bool = False):
         self.console = console
         self.verbose = verbose
         self.enable_descriptions = enable_descriptions
-
+    
     def build_graph(self, project_name: str, repo_path: Path, language: str) -> None:
-        """Build knowledge graph using xgraph."""
+        """
+        Build the knowledge graph using xgraph.
+        
+        Args:
+            project_name: Name of the project
+            repo_path: Path to the repository
+            language: Programming language
+        """
         try:
-            self._build_via_library(project_name, repo_path, language)
+            self._build_via_library(repo_path, language, project_name, self.enable_descriptions)
         except ImportError:
             if self.verbose:
                 self.console.print(
                     "[yellow]xgraph not installed as library, using CLI fallback[/yellow]"
                 )
-            self._build_via_subprocess(project_name, repo_path, language)
+            self._build_via_subprocess(repo_path, language, project_name, self.enable_descriptions)
 
     def _build_via_library(
-        self, project_name: str, repo_path: Path, language: str
+        self,
+        project_path: Path,
+        language: str,
+        project_name: str,
+        enable_descriptions: bool,
     ) -> None:
         """Build graph using xgraph as a Python library."""
         try:
@@ -45,26 +54,30 @@ class Neo4jGraphRepository(GraphRepository):
                 self.console.print("[dim]Building graph via xgraph library[/dim]")
 
             build_knowledge_graph(
-                project_path=str(repo_path),
+                project_path=str(project_path),
                 language=language,
                 project_name=project_name,
-                enable_descriptions=self.enable_descriptions,
-                keep_existing_graph=True,
+                enable_descriptions=enable_descriptions,
+                keep_existing_graph=True,  # Don't wipe other projects
                 graph_db_type="neo4j",
             )
 
         except Exception as e:
             raise RuntimeError(f"Failed to build knowledge graph via library: {e}")
-
+    
     def _build_via_subprocess(
-        self, project_name: str, repo_path: Path, language: str
+        self,
+        project_path: Path,
+        language: str,
+        project_name: str,
+        enable_descriptions: bool,
     ) -> None:
         """Build graph using xgraph CLI as subprocess."""
         try:
             cmd = [
                 "build-graph",
                 "--project-path",
-                str(repo_path),
+                str(project_path),
                 "--language",
                 language,
                 "--project-name",
@@ -72,7 +85,7 @@ class Neo4jGraphRepository(GraphRepository):
                 "--keep-existing-graph",
             ]
 
-            if self.enable_descriptions:
+            if enable_descriptions:
                 cmd.append("--enable-descriptions")
 
             if self.verbose:
@@ -96,11 +109,3 @@ class Neo4jGraphRepository(GraphRepository):
             raise RuntimeError(
                 "xgraph CLI not found. Please install xgraph: pip install xgraph"
             )
-
-    def query(self, cypher: str, params: dict | None = None) -> list[dict]:
-        """Execute a Cypher query and return results."""
-        raise NotImplementedError("Direct Neo4j queries not yet implemented")
-
-    def close(self) -> None:
-        """Close connection to graph database."""
-        pass

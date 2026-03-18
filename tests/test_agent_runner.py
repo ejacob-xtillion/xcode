@@ -8,8 +8,8 @@ import pytest
 from rich.console import Console
 
 from xcode.agent_runner import AgentRunner
-from xcode.domain.models import AgentResult as XCodeResult
-from xcode.domain.models import XCodeConfig
+from xcode.models import AgentResult as XCodeResult
+from xcode.models import XCodeConfig
 
 
 @pytest.fixture

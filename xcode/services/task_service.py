@@ -2,6 +2,8 @@
 Task service for task classification and management.
 """
 
+from pathlib import Path
+
 from xcode.domain.models import Task, TaskClassification
 from xcode.task_classifier import TaskClassifier
 
@@ -24,18 +26,31 @@ class TaskService:
         """
         return self.classifier.classify(task_description)
 
-    def create_task(self, description: str, context: str | None = None) -> Task:
+    def create_task(
+        self,
+        description: str,
+        repo_path: Path,
+        project_name: str,
+        language: str = "python",
+    ) -> Task:
         """
         Create a new task instance.
 
         Args:
             description: Task description
-            context: Optional context information
+            repo_path: Path to the repository
+            project_name: Name of the project
+            language: Programming language (default: python)
 
         Returns:
             Task instance
         """
-        return Task(description=description, context=context)
+        return Task(
+            description=description,
+            repo_path=repo_path,
+            project_name=project_name,
+            language=language,
+        )
 
     def validate_task(self, task_description: str) -> tuple[bool, str]:
         """

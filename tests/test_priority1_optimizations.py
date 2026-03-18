@@ -14,9 +14,9 @@ import pytest
 from rich.console import Console
 
 from xcode.agent_runner import AgentRunner
-from xcode.domain.models import TaskType, XCodeConfig
+from xcode.models import TaskType, XCodeConfig
 from xcode.orchestrator import XCodeOrchestrator
-from xcode.task_classifier import TaskClassifier
+from xcode.services import ClassificationService
 
 
 class TestPriority1Optimizations:
@@ -169,7 +169,7 @@ class TestPriority1Optimizations:
 
     def test_classification_determines_graph_need(self):
         """Test that task classification correctly determines graph needs."""
-        classifier = TaskClassifier()
+        classifier = ClassificationService()
 
         # Tasks that should NOT need graph
         simple_tasks = [
@@ -226,7 +226,7 @@ class TestOptimizationImpact:
 
     def test_simple_tasks_are_fast(self):
         """Verify that simple tasks are classified for fast execution."""
-        classifier = TaskClassifier()
+        classifier = ClassificationService()
 
         # Test greeting
         greeting = classifier.classify("hello")
@@ -243,7 +243,7 @@ class TestOptimizationImpact:
 
     def test_complex_tasks_get_more_resources(self):
         """Verify that complex tasks get appropriate resources."""
-        classifier = TaskClassifier()
+        classifier = ClassificationService()
 
         # Test refactoring
         refactor = classifier.classify("refactor the entire codebase")
@@ -260,7 +260,7 @@ class TestOptimizationImpact:
 
     def test_file_operations_get_moderate_resources(self):
         """Verify that file operations get moderate resources."""
-        classifier = TaskClassifier()
+        classifier = ClassificationService()
 
         # Test create file
         create = classifier.classify("create a new file called utils.py")

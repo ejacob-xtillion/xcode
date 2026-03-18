@@ -10,8 +10,8 @@ from dataclasses import dataclass
 from rich.console import Console
 
 from xcode.domain.models import AgentResult, Task, XCodeConfig
-from xcode.repositories.agent_repository import LaFactoriaAgentRepository
-from xcode.repositories.graph_repository import Neo4jGraphRepository
+from xcode.repositories.agent_repository import LaFactoriaRepository
+from xcode.repositories.graph_repository import XGraphRepository
 from xcode.schema import get_schema
 from xcode.services.agent_service import AgentService
 from xcode.services.graph_service import GraphService
@@ -29,18 +29,17 @@ class XCodeOrchestrator:
         """Initialize services and repositories."""
         self.task_service = TaskService()
 
-        graph_repo = Neo4jGraphRepository(
+        graph_repo = XGraphRepository(
             console=self.console,
             verbose=self.config.verbose,
-            enable_descriptions=self.config.xgraph_enable_descriptions,
         )
         self.graph_service = GraphService(graph_repo, self.console)
 
-        agent_repo = LaFactoriaAgentRepository(
-            console=self.console,
+        agent_repo = LaFactoriaRepository(
             base_url="http://localhost:8000",
+            console=self.console,
             agent_name="xcode_coding_agent",
-            max_iterations=10,
+            verbose=self.config.verbose,
         )
         self.agent_service = AgentService(agent_repo, self.console)
 

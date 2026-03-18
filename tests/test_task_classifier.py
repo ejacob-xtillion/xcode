@@ -2,8 +2,8 @@
 Tests for task classification system.
 """
 
-from xcode.domain.models import TaskClassification, TaskType
-from xcode.task_classifier import TaskClassifier
+from xcode.models import Task, TaskClassification, TaskType
+from xcode.services import ClassificationService
 
 
 class TestTaskClassifier:
@@ -11,7 +11,7 @@ class TestTaskClassifier:
 
     def setup_method(self):
         """Set up test fixtures."""
-        self.classifier = TaskClassifier()
+        self.classifier = ClassificationService()
 
     def test_greeting_classification(self):
         """Test that greetings are classified correctly."""
@@ -25,7 +25,8 @@ class TestTaskClassifier:
         ]
 
         for greeting in greetings:
-            result = self.classifier.classify(greeting)
+            task = Task(description=greeting, repo_path=self.tmp_path, project_name="test")
+            result = self.classifier.classify(task)
             assert result.task_type == TaskType.GREETING
             assert not result.should_use_tools
             assert result.max_files_to_read == 0
@@ -275,7 +276,7 @@ class TestPatternMatching:
 
     def setup_method(self):
         """Set up test fixtures."""
-        self.classifier = TaskClassifier()
+        self.classifier = ClassificationService()
 
     def test_multiple_pattern_matches(self):
         """Test tasks that could match multiple patterns."""

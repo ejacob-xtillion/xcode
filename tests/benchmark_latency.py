@@ -20,9 +20,9 @@ from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
-from xcode.domain.models import XCodeConfig
+from xcode.models import XCodeConfig
 from xcode.graph_builder import GraphBuilder
-from xcode.task_classifier import TaskClassifier
+from xcode.services import ClassificationService
 
 
 @dataclass
@@ -114,7 +114,7 @@ class LatencyBenchmark:
         try:
             # Measure classification time
             start_classify = time.perf_counter()
-            classifier = TaskClassifier()
+            classifier = ClassificationService()
             classification = classifier.classify(task)
             classification_time_ms = (time.perf_counter() - start_classify) * 1000
 

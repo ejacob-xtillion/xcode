@@ -1,7 +1,6 @@
 """
 Graph service for knowledge graph operations.
 """
-
 from pathlib import Path
 
 from rich.console import Console
@@ -11,12 +10,12 @@ from xcode.domain.interfaces import GraphRepository
 
 
 class GraphService:
-    """Service for knowledge graph operations."""
-
+    """Service for building and managing knowledge graphs."""
+    
     def __init__(self, graph_repo: GraphRepository, console: Console):
         self.graph_repo = graph_repo
         self.console = console
-
+    
     def ensure_graph_exists(
         self,
         project_name: str,
@@ -26,10 +25,10 @@ class GraphService:
     ) -> None:
         """
         Ensure knowledge graph exists for a repository.
-
+        
         Args:
             project_name: Name of the project
-            repo_path: Path to repository
+            repo_path: Path to the repository
             language: Programming language
             verbose: Whether to print verbose output
         """
@@ -55,11 +54,11 @@ class GraphService:
     def query_graph(self, cypher: str, params: dict | None = None) -> list[dict]:
         """
         Execute a Cypher query against the knowledge graph.
-
+        
         Args:
             cypher: Cypher query string
             params: Query parameters
-
+            
         Returns:
             List of result dictionaries
         """

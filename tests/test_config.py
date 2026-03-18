@@ -2,7 +2,7 @@
 Tests for config module
 """
 
-from xcode.domain.models import XCodeConfig
+from xcode.models import XCodeConfig
 
 
 class TestXCodeConfig:
