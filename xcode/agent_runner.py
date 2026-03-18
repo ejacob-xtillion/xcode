@@ -117,8 +117,13 @@ class AgentRunner:
         # Show configuration
         self._show_config()
 
-        # Prepare request
-        request_data = {"agent_name": self.agent_name, "query": query}
+        # Prepare request — recursion_limit gives LangGraph enough steps for complex tasks
+        recursion_limit = max(50, self.max_iterations * 4)
+        request_data = {
+            "agent_name": self.agent_name,
+            "query": query,
+            "config": {"recursion_limit": recursion_limit},
+        }
 
         logs = []
         session_id = None
@@ -129,7 +134,7 @@ class AgentRunner:
         try:
             self.console.print("\n[bold cyan]🤖 Connecting to la-factoria agent...[/bold cyan]")
 
-            async with httpx.AsyncClient(timeout=httpx.Timeout(30.0)) as client:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=10.0)) as client:
                 # Stream agent execution
                 async with client.stream(
                     "POST",
@@ -210,12 +215,13 @@ class AgentRunner:
                 error="Failed to connect to la-factoria API",
             )
         except Exception as e:
-            self.console.print(f"[red]✗[/red] Error: {str(e)}")
+            error_msg = str(e) or type(e).__name__
+            self.console.print(f"[red]✗[/red] Error: {error_msg}")
             return XCodeResult(
                 success=False,
                 task=self.config.task,
                 iterations=self.current_iteration,
-                error=str(e),
+                error=error_msg,
             )
 
     def _build_agent_query(self, schema_text: str, conversation_context: str = "") -> str:
@@ -469,7 +475,7 @@ Please complete the task now."""
             logs.append(f"Answer: {content}")
 
         elif event_type == "error":
-            content = event.get("content", "")
+            content = event.get("content") or event.get("error") or event.get("message") or event.get("detail") or ""
             self.console.print(
                 Panel(f"[bold red]Error:[/bold red]\n{content}", border_style="red", padding=(1, 2))
             )
