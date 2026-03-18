@@ -92,6 +92,9 @@ class StartupOrchestrator:
         Args:
             build_graph: Whether to build the knowledge graph during startup
         """
+        # Show intro message first (always completes fully)
+        self._show_intro_message()
+        
         if build_graph:
             self.state.graph_building = True
             
@@ -102,11 +105,7 @@ class StartupOrchestrator:
             )
             self._build_thread.start()
 
-        # Show intro message while graph builds
-        self._show_intro_message()
-
-        # Wait for graph to complete (with timeout) if building
-        if build_graph and self._build_thread:
+            # Wait for graph to complete (with timeout)
             self._build_thread.join(timeout=300)  # 5 minute max
 
             if self.state.graph_error and self.verbose:
