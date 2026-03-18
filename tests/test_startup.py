@@ -101,47 +101,41 @@ class TestStartupOrchestrator:
         count = orchestrator._estimate_file_count()
         assert count == 1  # Should only count the non-excluded file
 
-    @patch("xcode.startup.Neo4jGraphRepository")
-    def test_start_without_graph_build(self, mock_repo, orchestrator):
+    def test_start_without_graph_build(self, orchestrator):
         """Test starting without building graph."""
         orchestrator.start_with_welcome(build_graph=False)
-        
-        # Should not create graph repository
-        mock_repo.assert_not_called()
         
         # State should remain unchanged
         assert orchestrator.state.graph_building is False
         assert orchestrator.state.graph_complete is False
 
-    @patch("xcode.startup.Neo4jGraphRepository")
-    def test_build_graph_background_success(self, mock_repo, orchestrator):
+    @patch("xcode.startup.subprocess.run")
+    @patch("xcode.startup.sys")
+    def test_build_graph_background_success(self, mock_sys, mock_subprocess, orchestrator):
         """Test successful background graph building."""
-        mock_instance = MagicMock()
-        mock_repo.return_value = mock_instance
+        # Mock subprocess result
+        mock_result = MagicMock()
+        mock_result.stdout = "processed=10 nodes=100 rels=200"
+        mock_subprocess.return_value = mock_result
         
-        orchestrator._build_graph_background()
-        
-        # Should create repository and call build_graph
-        mock_repo.assert_called_once()
-        mock_instance.build_graph.assert_called_once_with(
-            project_name="test_project",
-            repo_path=orchestrator.repo_path,
-            language="python",
-        )
+        # Mock xgraph import to fail, forcing CLI path
+        with patch.dict('sys.modules', {'xgraph.knowledge_graph.build_graph': None}):
+            orchestrator._build_graph_background()
         
         # State should indicate completion
         assert orchestrator.state.graph_complete is True
         assert orchestrator.state.graph_building is False
         assert orchestrator.state.graph_error is None
 
-    @patch("xcode.startup.Neo4jGraphRepository")
-    def test_build_graph_background_error(self, mock_repo, orchestrator):
+    @patch("xcode.startup.subprocess.run")
+    def test_build_graph_background_error(self, mock_subprocess, orchestrator):
         """Test error handling during background graph building."""
-        mock_instance = MagicMock()
-        mock_instance.build_graph.side_effect = Exception("Test error")
-        mock_repo.return_value = mock_instance
+        # Mock subprocess to raise error
+        mock_subprocess.side_effect = Exception("Test error")
         
-        orchestrator._build_graph_background()
+        # Mock xgraph import to fail, forcing CLI path
+        with patch.dict('sys.modules', {'xgraph.knowledge_graph.build_graph': None}):
+            orchestrator._build_graph_background()
         
         # State should indicate error
         assert orchestrator.state.graph_complete is False

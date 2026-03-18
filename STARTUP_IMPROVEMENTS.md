@@ -93,6 +93,12 @@ xcode -i --no-build-graph
 - Background thread: Builds knowledge graph
 - Thread-safe state management via `StartupState` dataclass
 
+### Output Capture
+- Redirects stdout/stderr to suppress xgraph's verbose output
+- Uses subprocess with output capture for clean control
+- Parses xgraph output for progress updates (in verbose mode)
+- Ensures the welcome screen displays without interference
+
 ### Progress Calculation
 ```python
 percentage = (files_processed / total_files) * 100

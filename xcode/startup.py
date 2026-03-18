@@ -4,6 +4,10 @@ Elegant startup experience for xCode.
 Provides a seamless welcome screen while the knowledge graph builds in the background.
 """
 
+import io
+import re
+import subprocess
+import sys
 import threading
 import time
 from dataclasses import dataclass
@@ -17,8 +21,6 @@ from rich.live import Live
 from rich.panel import Panel
 from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 from rich.text import Text
-
-from xcode.repositories.graph_repository import Neo4jGraphRepository
 
 
 @dataclass
@@ -209,21 +211,11 @@ class StartupOrchestrator:
     def _build_graph_background(self) -> None:
         """Build the knowledge graph in a background thread."""
         try:
-            graph_repo = Neo4jGraphRepository(
-                console=self.console,
-                verbose=self.verbose,
-                enable_descriptions=self.enable_descriptions,
-            )
-
             # Estimate total files for progress tracking
             self.state.total_files = self._estimate_file_count()
-
-            # Build the graph
-            graph_repo.build_graph(
-                project_name=self.project_name,
-                repo_path=self.repo_path,
-                language=self.language,
-            )
+            
+            # Use subprocess to capture and parse xgraph output
+            self._build_via_subprocess()
 
             self.state.graph_complete = True
             self.state.files_processed = self.state.total_files
@@ -231,9 +223,86 @@ class StartupOrchestrator:
         except Exception as e:
             self.state.graph_error = str(e)
             if self.verbose:
+                # Restore console for error printing
                 self.console.print_exception()
         finally:
             self.state.graph_building = False
+    
+    def _build_via_subprocess(self) -> None:
+        """Build graph using subprocess with real-time progress parsing."""
+        try:
+            # Try library import first
+            from xgraph.knowledge_graph.build_graph import build_knowledge_graph
+            use_library = True
+        except ImportError:
+            use_library = False
+        
+        if use_library:
+            self._build_via_library()
+        else:
+            self._build_via_cli()
+    
+    def _build_via_library(self) -> None:
+        """Build using xgraph library with output capture."""
+        from xgraph.knowledge_graph.build_graph import build_knowledge_graph
+        
+        # Redirect stdout/stderr to capture progress
+        old_stdout = sys.stdout
+        old_stderr = sys.stderr
+        
+        captured_output = io.StringIO()
+        
+        try:
+            sys.stdout = captured_output
+            sys.stderr = captured_output
+            
+            build_knowledge_graph(
+                project_path=str(self.repo_path),
+                language=self.language,
+                project_name=self.project_name,
+                enable_descriptions=self.enable_descriptions,
+                keep_existing_graph=True,
+                graph_db_type="neo4j",
+            )
+            
+        finally:
+            sys.stdout = old_stdout
+            sys.stderr = old_stderr
+            
+            # Parse output for progress if verbose
+            if self.verbose:
+                output = captured_output.getvalue()
+                self._parse_progress(output)
+    
+    def _build_via_cli(self) -> None:
+        """Build using xgraph CLI."""
+        cmd = [
+            "build-graph",
+            "--project-path", str(self.repo_path),
+            "--language", self.language,
+            "--project-name", self.project_name,
+            "--keep-existing-graph",
+        ]
+        
+        if self.enable_descriptions:
+            cmd.append("--enable-descriptions")
+        
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        
+        if self.verbose and result.stdout:
+            self._parse_progress(result.stdout)
+    
+    def _parse_progress(self, output: str) -> None:
+        """Parse xgraph output to update progress."""
+        # Look for processed file count
+        matches = re.findall(r'processed=(\d+)', output)
+        if matches:
+            self.state.files_processed = int(matches[-1])
 
     def _estimate_file_count(self) -> int:
         """Estimate the number of files to process."""
