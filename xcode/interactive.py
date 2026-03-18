@@ -64,12 +64,9 @@ class InteractiveSession:
 
     def run(self) -> None:
         """Run the interactive session loop."""
-        render_banner(
-            self.console,
-            repo_path=self.config.repo_path,
-            model=self.config.model,
-        )
-
+        # Banner is now shown by StartupOrchestrator during graph build
+        # Only show it here if we're resuming or if graph wasn't built
+        
         while self.session_active:
             try:
                 user_input = self.prompt_session.prompt(

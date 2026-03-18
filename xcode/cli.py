@@ -121,23 +121,18 @@ def main(
 
         if use_interactive:
             from xcode.interactive import InteractiveSession
+            from xcode.startup import StartupOrchestrator
 
-            if config.build_graph:
-                from xcode.repositories.graph_repository import Neo4jGraphRepository
-                from xcode.services.graph_service import GraphService
-
-                graph_repo = Neo4jGraphRepository(
-                    console=console,
-                    verbose=config.verbose,
-                    enable_descriptions=config.xgraph_enable_descriptions,
-                )
-                graph_service = GraphService(graph_repo, console)
-                graph_service.ensure_graph_exists(
-                    project_name=config.project_name,
-                    repo_path=config.repo_path,
-                    language=config.language,
-                    verbose=config.verbose,
-                )
+            # Show welcome screen while building graph in background
+            startup = StartupOrchestrator(
+                console=console,
+                project_name=config.project_name,
+                repo_path=config.repo_path,
+                language=config.language,
+                verbose=config.verbose,
+                enable_descriptions=config.xgraph_enable_descriptions,
+            )
+            startup.start_with_welcome(build_graph=config.build_graph)
 
             session = InteractiveSession(config, console)
             session.run()
