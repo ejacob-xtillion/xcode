@@ -187,7 +187,8 @@ class StartupOrchestrator:
             elapsed = 0
             
             while elapsed < max_wait:
-                if self.state.total_files > 0 and self.state.files_processed > 0:
+                # Update progress if we have file counts
+                if self.state.total_files > 0:
                     percentage = (self.state.files_processed / self.state.total_files) * 100
                     progress.update(
                         task_id,
