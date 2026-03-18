@@ -181,10 +181,13 @@ class StartupOrchestrator:
             )
         )
 
-        # Live update loop
+        # Live update loop - keep running until build completes or times out
         with Live(layout, console=self.console, refresh_per_second=4):
-            while self.state.graph_building and not self.state.graph_complete:
-                if self.state.total_files > 0:
+            max_wait = 300  # 5 minutes
+            elapsed = 0
+            
+            while elapsed < max_wait:
+                if self.state.total_files > 0 and self.state.files_processed > 0:
                     percentage = (self.state.files_processed / self.state.total_files) * 100
                     progress.update(
                         task_id,
@@ -194,6 +197,7 @@ class StartupOrchestrator:
                 
                 if self.state.graph_error:
                     progress.update(task_id, description="[yellow]Graph build encountered issues[/yellow]")
+                    time.sleep(1)  # Show error briefly
                     break
                 
                 if self.state.graph_complete:
@@ -202,9 +206,11 @@ class StartupOrchestrator:
                         completed=100,
                         description="[green]✓ Knowledge graph ready![/green]",
                     )
+                    time.sleep(0.5)  # Show completion briefly
                     break
                 
                 time.sleep(0.25)
+                elapsed += 0.25
 
         self.console.print()
 
@@ -243,14 +249,28 @@ class StartupOrchestrator:
             self._build_via_cli()
     
     def _build_via_library(self) -> None:
-        """Build using xgraph library with output capture."""
+        """Build using xgraph library with output capture and progress tracking."""
         from xgraph.knowledge_graph.build_graph import build_knowledge_graph
         
         # Redirect stdout/stderr to capture progress
         old_stdout = sys.stdout
         old_stderr = sys.stderr
         
-        captured_output = io.StringIO()
+        # Use a custom StringIO that updates progress as it writes
+        class ProgressCapture(io.StringIO):
+            def __init__(self, parent):
+                super().__init__()
+                self.parent = parent
+                self.buffer = ""
+            
+            def write(self, s):
+                super().write(s)
+                self.buffer += s
+                # Parse progress from the buffer
+                self.parent._parse_progress_incremental(self.buffer)
+                return len(s)
+        
+        captured_output = ProgressCapture(self)
         
         try:
             sys.stdout = captured_output
@@ -268,11 +288,6 @@ class StartupOrchestrator:
         finally:
             sys.stdout = old_stdout
             sys.stderr = old_stderr
-            
-            # Parse output for progress if verbose
-            if self.verbose:
-                output = captured_output.getvalue()
-                self._parse_progress(output)
     
     def _build_via_cli(self) -> None:
         """Build using xgraph CLI."""
@@ -303,6 +318,15 @@ class StartupOrchestrator:
         matches = re.findall(r'processed=(\d+)', output)
         if matches:
             self.state.files_processed = int(matches[-1])
+    
+    def _parse_progress_incremental(self, output: str) -> None:
+        """Parse xgraph output incrementally to update progress in real-time."""
+        # Look for the most recent processed count
+        matches = re.findall(r'processed=(\d+)', output)
+        if matches:
+            processed = int(matches[-1])
+            if processed > self.state.files_processed:
+                self.state.files_processed = processed
 
     def _estimate_file_count(self) -> int:
         """Estimate the number of files to process."""
