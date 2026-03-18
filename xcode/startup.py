@@ -1,7 +1,7 @@
 """
 Elegant startup experience for xCode.
 
-Shows an informative intro message while the knowledge graph builds silently in the background.
+Shows an informative intro message that streams in while the knowledge graph builds silently in the background.
 """
 
 import io
@@ -14,8 +14,10 @@ from pathlib import Path
 from typing import Optional
 
 from rich.console import Console
+from rich.live import Live
 from rich.markdown import Markdown
 from rich.panel import Panel
+from rich.text import Text
 
 
 @dataclass
@@ -117,7 +119,7 @@ class StartupOrchestrator:
                 )
 
     def _show_intro_message(self) -> None:
-        """Show informative intro message about xCode."""
+        """Show informative intro message about xCode with streaming effect."""
         # Add project context to the intro
         context = f"\n**Current Project**: {self.project_name}\n"
         context += f"**Path**: `{self.repo_path}`\n"
@@ -128,15 +130,23 @@ class StartupOrchestrator:
             f"{context}\n*Preparing your workspace...*"
         )
         
-        markdown = Markdown(full_message)
-        self.console.print(
+        # Stream the message character by character
+        text = Text()
+        
+        with Live(
             Panel(
-                markdown,
+                text,
                 border_style="bright_blue",
                 padding=(1, 2),
                 title="[bold cyan]xCode[/bold cyan]",
-            )
-        )
+            ),
+            console=self.console,
+            refresh_per_second=20,
+        ) as live:
+            for char in full_message:
+                text.append(char, style="")
+                time.sleep(0.01)  # 10ms per character for smooth streaming
+        
         self.console.print()
 
 
