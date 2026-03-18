@@ -31,6 +31,7 @@ class AgentRunner:
         self.lf_base_url = "http://localhost:8000"
         self.agent_name = "xcode_coding_agent"
         self.tool_call_counter = 0  # Track tool calls for better display
+        self.quiet_mode = not config.verbose  # Quiet by default, verbose to see details
 
     def run(self) -> XCodeResult:
         """
@@ -357,44 +358,32 @@ Please complete the task now."""
             args = event.get("args", {})
             tool_id = event.get("tool_call_id", "")
 
-            # Create a visually distinct tool call display
-            self.console.print("\n")
+            # Elegant minimal output by default, verbose for debugging
+            if self.quiet_mode:
+                # Just show a simple indicator
+                self.console.print(f"[dim cyan]→ {tool}[/dim cyan]", end=" ")
+            else:
+                # Verbose mode: show full details
+                self.console.print("\n")
+                tool_info = Text()
+                tool_info.append(f"🔧 Tool Call #{self.tool_call_counter}\n", style="bold yellow")
+                tool_info.append("Tool: ", style="cyan")
+                tool_info.append(f"{tool}\n", style="bold white")
 
-            # Build the tool call panel content
-            tool_info = Text()
-            tool_info.append(f"🔧 Tool Call #{self.tool_call_counter}\n", style="bold yellow")
-            tool_info.append("Tool: ", style="cyan")
-            tool_info.append(f"{tool}\n", style="bold white")
+                if tool_id:
+                    tool_info.append("ID: ", style="dim cyan")
+                    tool_info.append(f"{tool_id}\n", style="dim")
 
-            if tool_id:
-                tool_info.append("ID: ", style="dim cyan")
-                tool_info.append(f"{tool_id}\n", style="dim")
-
-            # Format arguments based on verbosity and size
-            if args:
-                tool_info.append("\nArguments:\n", style="cyan")
-                args_str = json.dumps(args, indent=2)
-
-                # Always show some args, but truncate if too long and not verbose
-                if len(args_str) > 500 and not self.config.verbose:
-                    # Show compact version for large args
-                    arg_keys = list(args.keys())
-                    tool_info.append(f"  {', '.join(arg_keys)}\n", style="yellow")
-                    tool_info.append("  [dim](use --verbose to see full args)[/dim]\n", style="dim")
-                else:
-                    # Show full args with syntax highlighting
+                if args:
+                    tool_info.append("\nArguments:\n", style="cyan")
+                    args_str = json.dumps(args, indent=2)
                     try:
                         syntax = Syntax(args_str, "json", theme="monokai", line_numbers=False)
                         self.console.print(syntax)
                     except Exception:
                         tool_info.append(f"{args_str}\n", style="yellow")
 
-            # Show the panel only if we didn't already print syntax
-            if not (args and (len(json.dumps(args, indent=2)) <= 500 or self.config.verbose)):
                 self.console.print(Panel(tool_info, border_style="yellow", padding=(0, 1)))
-            else:
-                # Just show the header if we printed syntax separately
-                self.console.print(tool_info)
 
             logs.append(f"Tool call #{self.tool_call_counter}: {tool}")
 
@@ -403,7 +392,15 @@ Please complete the task now."""
             tool_call_id = event.get("tool_call_id", "")
             is_error = event.get("is_error", False)
 
-            # Create tool result display
+            # Quiet mode: just show success/error indicator
+            if self.quiet_mode:
+                if is_error:
+                    self.console.print("[red]✗[/red]")
+                else:
+                    self.console.print("[green]✓[/green]")
+                return  # Skip detailed output
+
+            # Verbose mode: show full details
             result_info = Text()
 
             if is_error:
@@ -464,8 +461,13 @@ Please complete the task now."""
 
         elif event_type == "answer":
             content = event.get("content", "")
-            self.console.print("\n[bold green]✓ Agent Response:[/bold green]")
-            self.console.print(f"{content}")
+            if self.quiet_mode:
+                # Clean output: just show the response
+                self.console.print(f"\n{content}")
+            else:
+                # Verbose: show with header
+                self.console.print("\n[bold green]✓ Agent Response:[/bold green]")
+                self.console.print(f"{content}")
             logs.append(f"Answer: {content}")
 
         elif event_type == "error":
