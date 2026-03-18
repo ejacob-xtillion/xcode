@@ -129,22 +129,31 @@ class StartupOrchestrator:
             f"{context}\n*Preparing your workspace...*"
         )
         
-        # Stream the message character by character
-        text = Text()
+        # Stream the message line by line with markdown rendering
+        lines = full_message.split('\n')
+        current_text = ""
         
         with Live(
             Panel(
-                text,
+                Markdown(""),
                 border_style="bright_blue",
                 padding=(1, 2),
                 title="[bold cyan]xCode[/bold cyan]",
             ),
             console=self.console,
-            refresh_per_second=20,
+            refresh_per_second=10,
         ) as live:
-            for char in full_message:
-                text.append(char, style="")
-                time.sleep(0.01)  # 10ms per character for smooth streaming
+            for line in lines:
+                current_text += line + "\n"
+                live.update(
+                    Panel(
+                        Markdown(current_text),
+                        border_style="bright_blue",
+                        padding=(1, 2),
+                        title="[bold cyan]xCode[/bold cyan]",
+                    )
+                )
+                time.sleep(0.15)  # 150ms per line for smooth streaming
         
         self.console.print()
 
