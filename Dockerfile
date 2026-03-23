@@ -31,7 +31,7 @@ RUN pip install --no-cache-dir -e .
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
-ENV LA_FACTORIA_URL=http://la-factoria:8000
+ENV LA_FACTORIA_URL=http://xcode-agent:8000
 
 # Default command: interactive mode
 CMD ["xcode", "-i"]

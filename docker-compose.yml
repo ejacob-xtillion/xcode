@@ -40,22 +40,23 @@ services:
     networks:
       - xcode-network
 
-  # xCode Agent API (la-factoria generated agent)
+  # xCode Agent API (integrated from la-factoria)
   xcode-agent:
     container_name: xcode-agent
     platform: linux/amd64
     restart: unless-stopped
     build:
-      context: /Users/elijahgjacob/la-factoria/output/xcode_agent
+      context: ./agent
       dockerfile: Dockerfile
     ports:
       - "8000:8000"
     volumes:
-      - /Users/elijahgjacob/la-factoria/output/xcode_agent:/app
+      - ./agent:/app
       - /app/.venv
-      - /Users/elijahgjacob:/elijahgjacob
+      - /Users/elijahgjacob:/Users/elijahgjacob
     env_file:
-      - /Users/elijahgjacob/la-factoria/output/xcode_agent/.env
+      - path: ./agent/.env
+        required: false
     environment:
       - PYTHONUNBUFFERED=1
       - NEO4J_URI=bolt://neo4j:7687

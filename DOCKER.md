@@ -3,13 +3,22 @@
 This Docker setup orchestrates four services:
 1. **PostgreSQL** - Agent session storage
 2. **Neo4j** - Knowledge graph database
-3. **xCode Agent** - AI agent backend (la-factoria generated)
+3. **xCode Agent** - AI agent backend (integrated in `agent/` directory)
 4. **xCode CLI** - Interactive coding assistant
 
 ## Prerequisites
 
 - Docker and Docker Compose installed
-- La-factoria xcode_agent generated at `/Users/elijahgjacob/la-factoria/output/xcode_agent`
+- OpenAI API key (set in `agent/.env`)
+
+## Agent Configuration
+
+The agent is integrated into this repository under `agent/`. Configure it by copying the example env file:
+
+```bash
+cp agent/.env.example agent/.env
+# Edit agent/.env and set your OPENAI_API_KEY
+```
 
 ## Quick Start
 

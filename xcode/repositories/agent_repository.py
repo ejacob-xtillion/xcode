@@ -111,7 +111,7 @@ class LaFactoriaRepository(AgentRepository):
         try:
             self.console.print("\n[bold cyan]🤖 Connecting to la-factoria agent...[/bold cyan]")
 
-            async with httpx.AsyncClient(timeout=httpx.Timeout(30.0)) as client:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(300.0)) as client:
                 async with client.stream(
                     "POST",
                     f"{self.base_url}/agents",
@@ -187,10 +187,10 @@ class LaFactoriaRepository(AgentRepository):
         except httpx.ConnectError:
             self.console.print("[red]✗[/red] Failed to connect to la-factoria")
             self.console.print(
-                "[yellow]Make sure la-factoria is running at http://localhost:8000[/yellow]"
+                f"[yellow]Make sure the agent API is running at {self.base_url}[/yellow]"
             )
             self.console.print(
-                "[dim]Start it with: cd /path/to/la-factoria && python -m app.main[/dim]"
+                "[dim]If running via Docker Compose, start `xcode-agent` first.[/dim]"
             )
             return AgentResult(
                 success=False,
@@ -320,9 +320,19 @@ Complete the task efficiently and accurately.
             if self.verbose:
                 self.console.print(f"[dim]Session created: {session_id}[/dim]")
 
+        elif event_type == "reasoning":
+            # Show agent's reasoning/thinking process
+            content = event.get("content", "")
+            if content:
+                self.console.print(f"\n[bold blue]💭 Thinking:[/bold blue]")
+                self.console.print(f"[dim italic]{content}[/dim italic]\n")
+                logs.append(f"Reasoning: {content}")
+
         elif event_type == "token":
             content = event.get("content", "")
-            self.console.print(content, end="")
+            # Only show tokens in verbose mode to reduce noise
+            if self.verbose:
+                self.console.print(content, end="")
             logs.append(content)
 
         elif event_type == "tool_call":
@@ -330,40 +340,39 @@ Complete the task efficiently and accurately.
             tool = event.get("tool", "unknown")
             args = event.get("args", {})
 
-            if not self.verbose:
-                self.console.print(f"[dim cyan]→ {tool}[/dim cyan]", end=" ")
-            else:
-                self.console.print(f"\n[yellow]🔧 Tool Call #{self.tool_call_counter}: {tool}[/yellow]")
-                if args:
-                    args_str = json.dumps(args, indent=2)
-                    self.console.print(f"[dim]{args_str}[/dim]")
+            # Always show tool calls with context
+            tool_display = self._format_tool_call(tool, args)
+            self.console.print(f"\n[yellow]🔧 Step {self.tool_call_counter}:[/yellow] {tool_display}")
+            
+            if self.verbose and args:
+                args_str = json.dumps(args, indent=2)
+                self.console.print(f"[dim]{args_str}[/dim]")
 
             logs.append(f"Tool call #{self.tool_call_counter}: {tool}")
 
         elif event_type == "tool_result":
             is_error = event.get("is_error", False)
+            content = event.get("content", "")
 
-            if not self.verbose:
-                if is_error:
-                    self.console.print("[red]✗[/red]")
-                else:
-                    self.console.print("[green]✓[/green]")
+            if is_error:
+                # Always show errors
+                self.console.print(f"  [red]✗ Error:[/red] {self._truncate(content, 300)}")
+                logs.append(f"Tool error: {content}")
             else:
-                content = event.get("content", "")
-                if content:
-                    content_str = str(content)
-                    if len(content_str) > 200:
-                        content_str = content_str[:200] + "..."
-                    status = "✗ Error" if is_error else "✓ Result"
-                    self.console.print(f"[{'red' if is_error else 'green'}]{status}:[/] [dim]{content_str}[/dim]")
+                # Show result summary
+                result_summary = self._summarize_tool_result(content)
+                self.console.print(f"  [green]✓[/green] {result_summary}")
+                if self.verbose and content:
+                    content_str = self._truncate(str(content), 500)
+                    self.console.print(f"  [dim]{content_str}[/dim]")
+                logs.append(f"Tool result: {result_summary}")
 
         elif event_type == "answer":
             content = event.get("content", "")
             if content:
-                if not self.verbose:
-                    self.console.print(f"\n{content}")
-                else:
-                    self.console.print(f"\n[bold green]✓ Agent Response:[/bold green]\n{content}")
+                self.console.print(f"\n[bold green]━━━ Agent Response ━━━[/bold green]")
+                self.console.print(f"{content}")
+                self.console.print(f"[bold green]━━━━━━━━━━━━━━━━━━━━━━[/bold green]\n")
                 logs.append(f"Answer: {content}")
 
         elif event_type == "error":
@@ -380,6 +389,82 @@ Complete the task efficiently and accurately.
             status = event.get("status", "unknown")
             if self.verbose:
                 self.console.print(f"\n[dim]Status: {status}[/dim]")
+
+    def _format_tool_call(self, tool: str, args: dict) -> str:
+        """Format tool call for display with context."""
+        if tool == "read_neo4j_cypher":
+            query = args.get("query", "")
+            # Extract the main action from the query
+            if "MATCH" in query:
+                if "File" in query:
+                    return "Querying knowledge graph for files..."
+                elif "Class" in query:
+                    return "Querying knowledge graph for classes..."
+                elif "Callable" in query or "Function" in query:
+                    return "Querying knowledge graph for functions..."
+                elif "Test" in query:
+                    return "Querying knowledge graph for tests..."
+                elif "count" in query.lower():
+                    return "Counting elements in knowledge graph..."
+                else:
+                    return "Querying knowledge graph..."
+            return f"Running Cypher query..."
+        elif tool in ("read_file", "read_text_file"):
+            path = args.get("path", args.get("file_path", ""))
+            return f"Reading file: {path}"
+        elif tool in ("write_file", "write_text_file"):
+            path = args.get("path", args.get("file_path", ""))
+            return f"Writing file: {path}"
+        elif tool == "edit_file":
+            path = args.get("path", args.get("file_path", ""))
+            return f"Editing file: {path}"
+        elif tool == "list_directory":
+            path = args.get("path", ".")
+            return f"Listing directory: {path}"
+        elif tool == "search_files":
+            pattern = args.get("pattern", args.get("query", ""))
+            return f"Searching files for: {pattern}"
+        elif tool == "run_shell" or tool == "execute_command":
+            cmd = args.get("command", "")
+            return f"Running command: {self._truncate(cmd, 50)}"
+        else:
+            return f"{tool}"
+
+    def _summarize_tool_result(self, content: str) -> str:
+        """Summarize tool result for display."""
+        if not content:
+            return "Done"
+        
+        content_str = str(content)
+        
+        # Count items if it looks like a list/array result
+        if content_str.startswith("[") and content_str.endswith("]"):
+            try:
+                import ast
+                items = ast.literal_eval(content_str)
+                if isinstance(items, list):
+                    return f"Found {len(items)} items"
+            except:
+                pass
+        
+        # Check for common result patterns
+        if "path" in content_str.lower() and content_str.count("\n") > 0:
+            lines = content_str.strip().split("\n")
+            return f"Found {len(lines)} files/paths"
+        
+        # Default: show truncated content
+        if len(content_str) > 100:
+            return f"{content_str[:100]}..."
+        return content_str
+
+    def _truncate(self, text: str, max_len: int) -> str:
+        """Truncate text to max length."""
+        if not text:
+            return ""
+        text = str(text)
+        if len(text) <= max_len:
+            return text
+        return text[:max_len] + "..."
 
     def _show_tool_summary(self, tool_calls: list) -> None:
         """Show summary of tool calls."""

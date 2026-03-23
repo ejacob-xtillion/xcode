@@ -130,7 +130,7 @@ class AgentRunner:
         try:
             self.console.print("\n[bold cyan]🤖 Connecting to la-factoria agent...[/bold cyan]")
 
-            async with httpx.AsyncClient(timeout=httpx.Timeout(30.0)) as client:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(300.0)) as client:
                 # Stream agent execution
                 async with client.stream(
                     "POST",
@@ -199,10 +199,10 @@ class AgentRunner:
         except httpx.ConnectError:
             self.console.print("[red]✗[/red] Failed to connect to la-factoria")
             self.console.print(
-                "[yellow]Make sure la-factoria is running at http://localhost:8000[/yellow]"
+                f"[yellow]Make sure the agent API is running at {self.lf_base_url}[/yellow]"
             )
             self.console.print(
-                "[dim]Start it with: cd /path/to/la-factoria && python -m app.main[/dim]"
+                "[dim]If running via Docker Compose, start `xcode-agent` first.[/dim]"
             )
             return XCodeResult(
                 success=False,

@@ -2,137 +2,182 @@
 
 ## Project Overview
 
-xCode is a CLI tool that:
-1. Builds a **Neo4j knowledge graph** of a codebase (via `xgraph`)
-2. Spawns an **AI coding agent** (via `la-factoria` at `http://localhost:8000`)
-3. Runs a **verification loop** (tests/linters) until task succeeds
+xCode is a **monorepo** containing:
+1. **CLI tool** (`xcode/`) - Builds a Neo4j knowledge graph and orchestrates coding tasks
+2. **AI Agent** (`agent/`) - FastAPI server with LangGraph-based coding agent
 
-Supports local LLMs (Ollama at `localhost:11434`) and cloud APIs.
+The CLI spawns the agent via Docker, which uses MCP tools (Neo4j, filesystem) to understand and modify code.
 
 ---
 
-## Architecture (Clean Architecture)
+## Repository Structure
 
 ```
-CLI / Interactive (cli.py, interactive.py)
+xcode/
+├── xcode/                    # CLI package
+│   ├── cli.py               # Click CLI entry point
+│   ├── orchestrator.py      # Main orchestrator
+│   ├── repositories/        # External adapters (agent API, Neo4j, etc.)
+│   └── services/            # Business logic
+├── agent/                    # AI Agent (FastAPI + LangGraph)
+│   ├── app/
+│   │   ├── api/agents/      # Agent API routes and service
+│   │   ├── engine/          # Agent implementation
+│   │   │   ├── xcode_coding_agent/  # The coding agent
+│   │   │   │   ├── agent.py         # Agent creation
+│   │   │   │   └── prompt.py        # System prompt
+│   │   │   ├── stream_processor.py  # SSE event processing
+│   │   │   └── mcp_tools.py         # MCP tool integration
+│   │   └── core/            # Settings, DB, middleware
+│   ├── Dockerfile           # Agent container
+│   └── pyproject.toml       # Agent dependencies
+├── docker-compose.yml       # Full stack (Neo4j, Postgres, Agent, CLI)
+├── tests/                   # CLI tests
+└── pyproject.toml          # CLI dependencies
+```
+
+---
+
+## Architecture
+
+```
+CLI (xcode/cli.py)
     ↓
-Orchestrator (orchestrator.py)
+Orchestrator (xcode/orchestrator.py)
     ↓
-Services (xcode/services/)          ← business logic
+Agent Repository (xcode/repositories/agent_repository.py)
+    ↓ HTTP/SSE
+Agent API (agent/app/api/agents/)
     ↓
-Repositories (xcode/repositories/)  ← external adapters
-    ↓
-Infrastructure (xcode/infrastructure/) ← low-level clients
-    ↓
-Domain (xcode/domain/)              ← models & interfaces
+LangGraph Agent (agent/app/engine/xcode_coding_agent/)
+    ↓ MCP
+Tools: Neo4j (knowledge graph), Filesystem (read/write files)
 ```
 
 ### Key Files
 
 | File | Role |
 |------|------|
-| `xcode/cli.py` | Click CLI entry point, all flags |
-| `xcode/orchestrator.py` | Main orchestrator (active, not the `_new` version) |
-| `xcode/services/agent_service.py` | Logs "Starting agent for task", calls agent repo |
-| `xcode/repositories/agent_repository.py` | La-factoria HTTP client — **see known bug below** |
-| `xcode/agent_runner.py` | Legacy runner — uses correct `/agents` endpoint |
-| `xcode/models/config.py` | `XCodeConfig`, `get_llm_config()` |
-| `xcode/infrastructure/llm_client.py` | LLM HTTP client (`/chat/completions`) |
+| `xcode/cli.py` | Click CLI entry point |
+| `xcode/orchestrator.py` | Main orchestrator |
+| `xcode/repositories/agent_repository.py` | Agent HTTP client (SSE streaming) |
+| `agent/app/api/agents/service.py` | Agent session management |
+| `agent/app/engine/xcode_coding_agent/agent.py` | LangGraph agent creation |
+| `agent/app/engine/xcode_coding_agent/prompt.py` | System prompt (Cypher rules, file handling) |
+| `agent/app/engine/stream_processor.py` | Converts LangGraph events to SSE |
 
 ---
 
-## Known Bug: La-Factoria Endpoint Mismatch
+## Agent Integration
 
-**Symptom:**
-```
-Starting agent for task: your task here
-✗ Task failed: Agent API error: 404
-{"detail":"Not Found"}
-```
+- **URL**: `http://localhost:8000` (or `http://xcode-agent:8000` in Docker)
+- **Agent name**: `xcode_coding_agent`
+- **Endpoint**: `POST /agents`
+- **Request**: `{"agent_name": "xcode_coding_agent", "query": "<task description>"}`
+- **Response**: Server-Sent Events (SSE)
+- **Event types**: `session_created`, `tool_call`, `tool_result`, `token`, `answer`, `error`, `complete`
 
-**Root cause:**
-- `xcode/repositories/agent_repository.py:63` calls `POST /agent/stream`
-- La-factoria server only exposes `POST /agents`
-- FastAPI returns `{"detail":"Not Found"}` for missing routes
+### MCP Tools Available to Agent
 
-**The two endpoints and their payloads:**
-
-| File | Endpoint | Payload |
-|------|----------|---------|
-| `agent_repository.py` (broken) | `POST /agent/stream` | `{agent_name, system_prompt, user_message, config}` |
-| `agent_runner.py` (working) | `POST /agents` | `{agent_name, query}` |
-
-**Fix needed:** Update `agent_repository.py` to call `/agents` with `{agent_name, query}` payload, combining `system_prompt` + `user_message` into `query`. Also update `_handle_event` to match the different event types (`session_created`, `token`, `answer`, `complete` vs `message`).
-
-Note: `/agents` does not accept LLM config — la-factoria uses its own configured LLM. The `--local`/`--llm-endpoint` flags affect the graph-building LLM (xgraph), not the agent LLM.
-
----
-
-## La-Factoria Integration
-
-- Server: `http://localhost:8000` (hardcoded)
-- Agent name: `xcode_coding_agent`
-- Correct endpoint: `POST /agents`
-- Request: `{"agent_name": "xcode_coding_agent", "query": "<combined prompt>"}`
-- Response: Server-Sent Events (SSE), line-by-line `data: {...}`
-- Event types: `session_created`, `token`, `tool_call`, `tool_result`, `answer`, `error`, `interrupt`, `complete`
-
----
-
-## Local LLM (Ollama)
-
-- Default endpoint: `http://localhost:11434`
-- LLM config passed via `XCodeConfig.get_llm_config()` → `{"model": ..., "base_url": ...}`
-- Only affects graph building (xgraph), NOT the la-factoria agent
-- CLI flags: `--local` (Ollama default) or `--llm-endpoint <url> --model <name>`
+1. **Neo4j** (`read_neo4j_cypher`) - Query the knowledge graph
+2. **Filesystem** (`read_file`, `write_file`, `edit_file`, `list_directory`) - File operations
 
 ---
 
 ## Running
 
+### With Docker (recommended)
+
 ```bash
-# With Ollama
-xcode --local "your task here"
+# Start all services
+docker-compose up -d
 
-# With custom endpoint
-xcode --llm-endpoint http://localhost:11434/v1 --model llama3.2 "your task"
+# Run a task
+docker-compose exec xcode xcode "add logging to main.py"
 
-# Skip graph rebuild
-xcode --no-build-graph "your task"
-
-# Verbose
-xcode --verbose --local "your task"
+# Interactive mode
+docker-compose exec -it xcode xcode -i
 ```
+
+### Local Development
+
+```bash
+# Start dependencies
+docker-compose up -d neo4j postgres xcode-agent
+
+# Run CLI locally
+xcode --local "your task here"
+```
+
+### CLI Flags
+
+```bash
+xcode "task"                    # Run task
+xcode -i                        # Interactive mode
+xcode --verbose "task"          # Verbose output
+xcode --no-build-graph "task"   # Skip graph rebuild
+xcode --local "task"            # Use Ollama for graph building
+```
+
+---
 
 ## Tests & Code Quality
 
 ```bash
-pytest                          # run all tests (121 tests, ~46% coverage)
-pytest tests/test_config.py -v
+# CLI tests
+pytest tests/ -v
 pytest --cov=xcode --cov-report=html
 
-black xcode tests               # format
-ruff check xcode tests          # lint
-mypy xcode                      # type check
+# Formatting & linting
+black xcode tests
+ruff check xcode tests
+mypy xcode
 ```
 
 ---
 
 ## Environment Variables
 
+### CLI (.env)
 ```bash
 NEO4J_URI=bolt://localhost:7687
 NEO4J_USER=neo4j
 NEO4J_PASSWORD=password
-XCODE_MODEL=llama3.2
-XCODE_LLM_ENDPOINT=http://localhost:11434
-XGRAPH_ENABLE_DESCRIPTIONS=false
+LA_FACTORIA_URL=http://localhost:8000
+```
+
+### Agent (agent/.env)
+```bash
+OPENAI_API_KEY=your-key
+NEO4J_URI=bolt://neo4j:7687
+NEO4J_USERNAME=neo4j
+NEO4J_PASSWORD=password
+DATABASE_URL=postgresql://user:pass@postgres:5432/db
 ```
 
 ---
 
-## Dual Orchestrator Status
+## Common Issues
 
-- `orchestrator.py` — **active** (used by CLI)
-- `orchestrator_new.py` — in-progress migration, not yet wired up
-- `agent_runner.py` — legacy, has correct endpoint logic; reference it when fixing `agent_repository.py`
+### Agent returns "Access denied - path outside allowed directories"
+The filesystem MCP only allows access to `/Users/elijahgjacob`. Ensure:
+1. The repo path is under this directory
+2. The Docker volume mount is correct: `/Users/elijahgjacob:/Users/elijahgjacob`
+
+### Neo4j Cypher syntax errors
+The agent's prompt has strict Cypher rules. Key points:
+- Use simple, separate queries (not complex CALL {} blocks)
+- Never use UNION ALL
+- Neo4j stores relative paths; agent must prepend repo path
+
+### Recursion limit reached
+The agent has a 100-step limit. If hit, the task is too complex or the agent is looping. Check the prompt's "STOP CONDITIONS" section.
+
+---
+
+## Development Notes
+
+- Agent runs in its own container with separate Python environment
+- Agent imports stay as `app.*` (not `agent.app.*`)
+- CLI communicates with agent via HTTP/SSE only
+- Agent's LLM is configured in `agent/.env`, not via CLI flags

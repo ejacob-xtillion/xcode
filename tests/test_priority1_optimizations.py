@@ -125,7 +125,7 @@ class TestPriority1Optimizations:
             if "timeout" in call_kwargs:
                 timeout = call_kwargs["timeout"]
                 assert isinstance(timeout, httpx.Timeout)
-                assert timeout.connect == 30.0 or timeout.read == 30.0 or timeout.write == 30.0
+                assert timeout.connect == 300.0 or timeout.read == 300.0 or timeout.write == 300.0
 
     def test_file_tree_included_for_file_operations(self, tmp_path):
         """Test that file tree is included in prompt for file operations."""
