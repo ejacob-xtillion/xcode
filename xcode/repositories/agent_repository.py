@@ -156,19 +156,32 @@ class LaFactoriaRepository(AgentRepository):
 
             success = final_status in ["completed", "interrupted"]
 
-            self.console.print(f"\n[bold]Agent execution {final_status}[/bold]")
-            self.console.print(f"Execution time: {execution_time_ms / 1000:.2f}s")
-            if session_id:
-                self.console.print(f"Session ID: {session_id}")
+            if self.verbose or not success:
+                self.console.print(f"\n[bold]Agent execution {final_status}[/bold]")
+                self.console.print(f"Execution time: {execution_time_ms / 1000:.2f}s")
+                if session_id:
+                    self.console.print(f"Session ID: {session_id}")
 
             if tool_calls and self.verbose:
                 self._show_tool_summary(tool_calls)
+
+            # Extract error from logs if task failed
+            error_msg = None
+            if not success:
+                # Look for error in logs
+                for log in logs:
+                    if "error" in log.lower() or "failed" in log.lower():
+                        error_msg = log
+                        break
+                if not error_msg and logs:
+                    error_msg = logs[-1] if logs else "Unknown error"
 
             return AgentResult(
                 success=success,
                 task=task.description,
                 iterations=1,
                 logs=logs,
+                error=error_msg if not success else None,
             )
 
         except httpx.ConnectError:
