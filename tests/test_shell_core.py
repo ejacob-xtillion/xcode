@@ -82,8 +82,9 @@ def test_run_shell_command_impl_echo(tmp_path):
         timeout=10,
         max_output_bytes=4096,
     )
-    assert "exit_code=0" in out
+    assert "exit_code=" not in out
     assert "hello" in out
+    assert "$ echo hello" in out or "echo hello" in out
 
 
 def test_run_shell_command_impl_timeout(tmp_path):
@@ -150,7 +151,7 @@ def test_auto_install_skipped_without_requirements_txt(tmp_path):
                 max_output_bytes=4096,
                 auto_install_requirements=True,
             )
-    assert "exit_code=0" in out
+    assert "exit_code=" not in out
     assert "ok" in out
     mock_popen.assert_called_once()
 
@@ -188,7 +189,7 @@ def test_auto_install_runs_pip_before_pytest_when_requirements_present(tmp_path)
                     auto_install_requirements=True,
                     pip_install_timeout=60,
                 )
-    assert "install_exit_code=0" in out
+    assert "install_exit_code" not in out
     assert "installed" in out
     assert "tests passed" in out
     mock_popen.assert_called_once()

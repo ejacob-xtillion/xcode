@@ -287,7 +287,7 @@ def run_shell_command_impl(
 
                 preamble = (
                     f"auto: {via}\n"
-                    f"install_exit_code={pip_code}\n{truncate_output(pip_blob, max_output_bytes)}\n"
+                    f"{truncate_output(pip_blob, max_output_bytes)}\n"
                     f"---\n"
                 )
                 if pip_code != 0:
@@ -333,5 +333,10 @@ def run_shell_command_impl(
         combined = "(no stdout/stderr)"
 
     combined = truncate_output(combined, max_output_bytes)
-    body = f"exit_code={exit_code}\n{cwd}\n$ {command}\n\n{combined}"
+    # Omit exit_code when 0 to reduce noise; always show on failure.
+    if exit_code != 0:
+        head = f"exit_code={exit_code}\n{cwd}\n$ {command}\n\n"
+    else:
+        head = f"{cwd}\n$ {command}\n\n"
+    body = head + combined
     return preamble + body if preamble else body
