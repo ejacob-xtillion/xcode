@@ -7,19 +7,18 @@ from dataclasses import dataclass
 
 from rich.console import Console
 
+from xcode.domain.interfaces import AgentRepository, GraphRepository
 from xcode.models import XCodeConfig
 from xcode.repositories import (
-    AgentRepository,
-    LaFactoriaRepository,
-    GraphRepository,
-    XGraphRepository,
-    CacheRepository,
     InMemoryCacheRepository,
+    LaFactoriaRepository,
+    XGraphRepository,
 )
+from xcode.repositories.cache_repository import CacheRepository
 from xcode.services import (
     AgentService,
-    GraphService,
     ClassificationService,
+    GraphService,
     VerificationService,
 )
 from xcode.shared import get_schema
