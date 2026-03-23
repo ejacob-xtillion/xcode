@@ -154,7 +154,10 @@ class LaFactoriaRepository(AgentRepository):
         self._pending_tool_sig = None
 
         try:
-            self.console.print("\n[bold cyan]🤖 Connecting to la-factoria agent...[/bold cyan]")
+            if self.verbose:
+                self.console.print(
+                    "\n[bold cyan]🤖 Connecting to la-factoria agent...[/bold cyan]"
+                )
 
             async with httpx.AsyncClient(timeout=httpx.Timeout(300.0)) as client:
                 async with client.stream(
@@ -169,10 +172,11 @@ class LaFactoriaRepository(AgentRepository):
                             f"La-factoria API error: {response.status_code} - {error_text.decode()}"
                         )
 
-                    self.console.print("[green]✓[/green] Connected to agent\n")
-                    self.console.print(
-                        "[bold magenta]━━ Agent trace (chronological) ━━[/bold magenta]"
-                    )
+                    if self.verbose:
+                        self.console.print("[green]✓[/green] Connected to agent\n")
+                        self.console.print(
+                            "[bold magenta]━━ Agent trace (chronological) ━━[/bold magenta]"
+                        )
 
                     async for line in response.aiter_lines():
                         if line.startswith("data: "):
@@ -426,9 +430,12 @@ Complete the task efficiently and accurately.
             session_id = event.get("session_id")
             sid = session_id or "?"
             self._append_trace_line(logs, "session", f"created ({sid})")
-            self.console.print(
-                f"\n[dim]{self._trace_seq:>2}. [session][/dim] [cyan]{sid}[/cyan]"
-            )
+            # Skip console line by default (noisy each message). Rich would parse
+            # literal "[session]" as markup — use plain text if shown.
+            if self.verbose:
+                self.console.print(
+                    f"\n[dim]{self._trace_seq:>2}. session[/dim] [cyan]{sid}[/cyan]"
+                )
 
         elif event_type == "reasoning":
             # Show agent's reasoning/thinking process
