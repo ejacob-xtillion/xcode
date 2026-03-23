@@ -87,6 +87,8 @@ def create_container(config: XCodeConfig, console: Console = None) -> DIContaine
     agent_service = AgentService(
         agent_repo=agent_repo,
         console=console,
+        classification_service=classification_service,
+        cache_repo=cache_repo,
     )
     
     graph_service = GraphService(

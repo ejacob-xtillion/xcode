@@ -52,16 +52,16 @@ class LaFactoriaRepository(AgentRepository):
         
         Args:
             task: Task to execute
-            config: LLM configuration dict
+            config: LLM configuration dict (includes classification, file_tree, neo4j_uri)
             schema: Neo4j schema documentation
             conversation_context: Previous conversation history
             
         Returns:
             AgentResult with execution status
         """
-        # Extract parameters from task and config
-        classification = task.classification if hasattr(task, 'classification') else None
-        file_tree = task.file_tree if hasattr(task, 'file_tree') else None
+        # Extract parameters from config
+        classification = config.get('classification')
+        file_tree = config.get('file_tree')
         neo4j_uri = config.get('neo4j_uri', 'bolt://localhost:7687')
         
         return await self._run_agent_internal(
