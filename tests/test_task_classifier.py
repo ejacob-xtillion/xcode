@@ -25,8 +25,7 @@ class TestTaskClassifier:
         ]
 
         for greeting in greetings:
-            task = Task(description=greeting, repo_path=self.tmp_path, project_name="test")
-            result = self.classifier.classify(task)
+            result = self.classifier.classify(greeting)
             assert result.task_type == TaskType.GREETING
             assert not result.should_use_tools
             assert result.max_files_to_read == 0
