@@ -19,6 +19,7 @@ from xcode.services import (
     AgentService,
     ClassificationService,
     GraphService,
+    TaskService,
     VerificationService,
 )
 from xcode.shared import get_schema
@@ -40,6 +41,7 @@ class DIContainer:
     # Services
     agent_service: AgentService
     graph_service: GraphService
+    task_service: TaskService
     classification_service: ClassificationService
     verification_service: VerificationService
     
@@ -80,14 +82,11 @@ def create_container(config: XCodeConfig, console: Console = None) -> DIContaine
     
     # Create services
     classification_service = ClassificationService()
+    task_service = TaskService()
     
     agent_service = AgentService(
         agent_repo=agent_repo,
-        cache_repo=cache_repo,
-        classification_service=classification_service,
         console=console,
-        neo4j_uri=config.neo4j_uri,
-        schema_text=schema_text,
     )
     
     graph_service = GraphService(
@@ -108,6 +107,7 @@ def create_container(config: XCodeConfig, console: Console = None) -> DIContaine
         cache_repo=cache_repo,
         agent_service=agent_service,
         graph_service=graph_service,
+        task_service=task_service,
         classification_service=classification_service,
         verification_service=verification_service,
         console=console,
