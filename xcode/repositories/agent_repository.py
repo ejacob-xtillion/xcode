@@ -12,6 +12,23 @@ from rich.text import Text
 from xcode.domain.interfaces import AgentRepository
 from xcode.models import Task, TaskClassification, AgentResult, FileTreeCache, TaskType
 
+# Tools whose successful output is reasonably summarized as one record per non-empty line.
+_LINE_LIST_TOOL_SUFFIX_LABEL: tuple[tuple[str, str], ...] = (
+    ("list_directory", "paths"),
+    ("search_files", "matches"),
+)
+
+
+def _line_list_summary_label(tool: str | None) -> str | None:
+    """If tool output is line-oriented listing, return the noun for the summary; else None."""
+    if not tool:
+        return None
+    leaf = tool.split(".")[-1]
+    for suffix, label in _LINE_LIST_TOOL_SUFFIX_LABEL:
+        if leaf == suffix or leaf.endswith(f"_{suffix}"):
+            return label
+    return None
+
 
 class LaFactoriaRepository(AgentRepository):
     """
@@ -46,6 +63,7 @@ class LaFactoriaRepository(AgentRepository):
         self._trace_seq = 0
         self._token_chunks: list[str] = []
         self._stream_printed = False
+        self._tool_by_call_id: dict[str, str] = {}
 
     def configure_display(
         self,
@@ -130,6 +148,7 @@ class LaFactoriaRepository(AgentRepository):
         self._trace_seq = 0
         self._token_chunks = []
         self._stream_printed = False
+        self._tool_by_call_id.clear()
 
         try:
             self.console.print("\n[bold cyan]🤖 Connecting to la-factoria agent...[/bold cyan]")
@@ -398,6 +417,9 @@ Complete the task efficiently and accurately.
             self.tool_call_counter += 1
             tool = event.get("tool", "unknown")
             args = event.get("args", {})
+            tcid = event.get("tool_call_id") or ""
+            if tcid:
+                self._tool_by_call_id[tcid] = tool
 
             # Always show tool calls with context
             tool_display = self._format_tool_call(tool, args)
@@ -419,7 +441,13 @@ Complete the task efficiently and accurately.
                 self._append_trace_line(logs, "tool_error", err_bit)
                 self.console.print(f"  [red]✗ Error:[/red] {err_bit}")
             else:
-                result_summary = self._summarize_tool_result(content)
+                tcid = event.get("tool_call_id") or ""
+                pending_tool = (
+                    self._tool_by_call_id.pop(tcid, None) if tcid else None
+                )
+                result_summary = self._summarize_tool_result(
+                    content, tool=pending_tool
+                )
                 self._append_trace_line(logs, "tool_result", result_summary)
                 self.console.print(f"  [green]✓[/green] {result_summary}")
                 if self.verbose and content:
@@ -499,28 +527,32 @@ Complete the task efficiently and accurately.
         else:
             return f"{tool}"
 
-    def _summarize_tool_result(self, content: str) -> str:
+    def _summarize_tool_result(
+        self, content: str, tool: str | None = None
+    ) -> str:
         """Summarize tool result for display."""
         if not content:
             return "Done"
-        
+
         content_str = str(content)
-        
+
         # Count items if it looks like a list/array result
         if content_str.startswith("[") and content_str.endswith("]"):
             try:
                 import ast
+
                 items = ast.literal_eval(content_str)
                 if isinstance(items, list):
                     return f"Found {len(items)} items"
-            except:
+            except Exception:
                 pass
-        
-        # Check for common result patterns
-        if "path" in content_str.lower() and content_str.count("\n") > 0:
-            lines = content_str.strip().split("\n")
-            return f"Found {len(lines)} files/paths"
-        
+
+        list_label = _line_list_summary_label(tool)
+        if list_label and "\n" in content_str:
+            lines = [ln for ln in content_str.splitlines() if ln.strip()]
+            if lines:
+                return f"Found {len(lines)} {list_label}"
+
         # Default: show truncated content
         if len(content_str) > 100:
             return f"{content_str[:100]}..."
