@@ -162,14 +162,19 @@ class StartupOrchestrator:
         """Show loading spinner while graph builds."""
         spinner = Spinner("dots", text="[cyan]Preparing your workspace...[/cyan]")
         
-        with Live(spinner, console=self.console, refresh_per_second=10):
-            # Wait for graph to complete (with timeout)
+        with Live(spinner, console=self.console, refresh_per_second=10) as live:
+            # Keep spinner alive while thread is running
             if self._build_thread:
-                self._build_thread.join(timeout=300)  # 5 minute max
+                while self._build_thread.is_alive():
+                    time.sleep(0.1)  # Check every 100ms
+                    # Update spinner to keep it animated
+                    live.update(spinner)
         
         # Show completion
         if self.state.graph_complete:
             self.console.print("[green]✓[/green] [dim]Workspace ready![/dim]")
+        elif self.state.graph_error:
+            self.console.print("[yellow]⚠[/yellow] [dim]Graph build skipped[/dim]")
         self.console.print()
 
     def _build_graph_background(self) -> None:
