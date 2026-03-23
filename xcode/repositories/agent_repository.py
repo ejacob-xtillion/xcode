@@ -6,6 +6,8 @@ from typing import Optional
 
 import httpx
 from rich.console import Console
+from rich.panel import Panel
+from rich.text import Text
 
 from xcode.domain.interfaces import AgentRepository
 from xcode.models import Task, TaskClassification, AgentResult, FileTreeCache, TaskType
@@ -38,7 +40,24 @@ class LaFactoriaRepository(AgentRepository):
         self.console = console
         self.agent_name = agent_name
         self.verbose = verbose
+        self.stream_tokens = True
+        self.trace_recap = False
         self.tool_call_counter = 0
+        self._trace_seq = 0
+        self._token_chunks: list[str] = []
+        self._stream_printed = False
+
+    def configure_display(
+        self,
+        *,
+        verbose: bool,
+        stream_tokens: bool = True,
+        trace_recap: bool = False,
+    ) -> None:
+        """Sync console behavior from CLI / interactive toggles (call before each task)."""
+        self.verbose = verbose
+        self.stream_tokens = stream_tokens
+        self.trace_recap = trace_recap
 
     async def execute_task(
         self,
@@ -102,11 +121,15 @@ class LaFactoriaRepository(AgentRepository):
 
         request_data = {"agent_name": self.agent_name, "query": query}
 
-        logs = []
+        logs: list[str] = []
         session_id = None
         final_status = "unknown"
         execution_time_ms = 0
         tool_calls = []
+        self.tool_call_counter = 0
+        self._trace_seq = 0
+        self._token_chunks = []
+        self._stream_printed = False
 
         try:
             self.console.print("\n[bold cyan]🤖 Connecting to la-factoria agent...[/bold cyan]")
@@ -125,6 +148,9 @@ class LaFactoriaRepository(AgentRepository):
                         )
 
                     self.console.print("[green]✓[/green] Connected to agent\n")
+                    self.console.print(
+                        "[bold magenta]━━ Agent trace (chronological) ━━[/bold magenta]"
+                    )
 
                     async for line in response.aiter_lines():
                         if line.startswith("data: "):
@@ -153,6 +179,17 @@ class LaFactoriaRepository(AgentRepository):
                                 self.console.print(
                                     f"[yellow]Warning: Failed to parse event: {e}[/yellow]"
                                 )
+
+                    self._flush_token_buffer(logs)
+
+            if self.trace_recap and logs:
+                self.console.print(
+                    Panel(
+                        Text("\n".join(logs), style="dim"),
+                        title="[bold]Trace recap (chronological)[/bold]",
+                        border_style="bright_magenta",
+                    )
+                )
 
             success = final_status in ["completed", "interrupted"]
 
@@ -310,29 +347,52 @@ Complete the task efficiently and accurately.
 
         return "\n".join(lines)
 
+    def _append_trace_line(self, logs: list[str], kind: str, summary: str) -> None:
+        """Numbered chronological entry for DX and optional recap."""
+        self._trace_seq += 1
+        line = f"{self._trace_seq:>2}. [{kind}] {summary}"
+        logs.append(line)
+
+    def _flush_token_buffer(self, logs: list[str]) -> None:
+        """Fold streamed tokens into one trace line before answer / complete."""
+        if not self._token_chunks:
+            return
+        full = "".join(self._token_chunks)
+        self._token_chunks.clear()
+        preview = self._truncate(full.replace("\n", " "), 220)
+        self._append_trace_line(logs, "stream", f"{len(full)} chars — {preview}")
+
     def _handle_event(self, event: dict, logs: list) -> None:
         """Handle a streaming event from la-factoria."""
         event_type = event.get("type")
 
         if event_type == "session_created":
             session_id = event.get("session_id")
-            if self.verbose:
-                self.console.print(f"[dim]Session created: {session_id}[/dim]")
+            sid = session_id or "?"
+            self._append_trace_line(logs, "session", f"created ({sid})")
+            self.console.print(
+                f"\n[dim]{self._trace_seq:>2}. [session][/dim] [cyan]{sid}[/cyan]"
+            )
 
         elif event_type == "reasoning":
             # Show agent's reasoning/thinking process
             content = event.get("content", "")
             if content:
-                self.console.print(f"\n[bold blue]💭 Thinking:[/bold blue]")
-                self.console.print(f"[dim italic]{content}[/dim italic]\n")
-                logs.append(f"Reasoning: {content}")
+                preview = self._truncate(content.replace("\n", " "), 160)
+                self._append_trace_line(logs, "reasoning", preview)
+                self.console.print(
+                    f"\n[bold blue]💭 Reasoning[/bold blue] [dim](trace {self._trace_seq})[/dim]"
+                )
+                self.console.print(f"[dim italic]{content}[/dim italic]")
 
         elif event_type == "token":
             content = event.get("content", "")
-            # Only show tokens in verbose mode to reduce noise
-            if self.verbose:
-                self.console.print(content, end="")
-            logs.append(content)
+            if not content:
+                return
+            self._token_chunks.append(content)
+            if self.stream_tokens:
+                self.console.print(content, end="", style="dim")
+                self._stream_printed = True
 
         elif event_type == "tool_call":
             self.tool_call_counter += 1
@@ -341,38 +401,42 @@ Complete the task efficiently and accurately.
 
             # Always show tool calls with context
             tool_display = self._format_tool_call(tool, args)
-            self.console.print(f"\n[yellow]🔧 Step {self.tool_call_counter}:[/yellow] {tool_display}")
-            
+            self._append_trace_line(logs, "tool_call", f"{tool} — {tool_display}")
+            self.console.print(
+                f"\n[yellow]🔧 Step {self.tool_call_counter}:[/yellow] [white]{tool}[/white] — {tool_display}"
+            )
+
             if self.verbose and args:
                 args_str = json.dumps(args, indent=2)
                 self.console.print(f"[dim]{args_str}[/dim]")
-
-            logs.append(f"Tool call #{self.tool_call_counter}: {tool}")
 
         elif event_type == "tool_result":
             is_error = event.get("is_error", False)
             content = event.get("content", "")
 
             if is_error:
-                # Always show errors
-                self.console.print(f"  [red]✗ Error:[/red] {self._truncate(content, 300)}")
-                logs.append(f"Tool error: {content}")
+                err_bit = self._truncate(str(content), 300)
+                self._append_trace_line(logs, "tool_error", err_bit)
+                self.console.print(f"  [red]✗ Error:[/red] {err_bit}")
             else:
-                # Show result summary
                 result_summary = self._summarize_tool_result(content)
+                self._append_trace_line(logs, "tool_result", result_summary)
                 self.console.print(f"  [green]✓[/green] {result_summary}")
                 if self.verbose and content:
                     content_str = self._truncate(str(content), 500)
                     self.console.print(f"  [dim]{content_str}[/dim]")
-                logs.append(f"Tool result: {result_summary}")
 
         elif event_type == "answer":
             content = event.get("content", "")
             if content:
-                self.console.print(f"\n[bold green]━━━ Agent Response ━━━[/bold green]")
+                self._flush_token_buffer(logs)
+                if self._stream_printed:
+                    self.console.print()
+                    self._stream_printed = False
+                self._append_trace_line(logs, "answer", f"{len(content)} chars")
+                self.console.print(f"\n[bold green]━━━ Final answer ━━━[/bold green]")
                 self.console.print(f"{content}")
                 self.console.print(f"[bold green]━━━━━━━━━━━━━━━━━━━━━━[/bold green]\n")
-                logs.append(f"Answer: {content}")
 
         elif event_type == "error":
             content = event.get("content", "")
@@ -386,6 +450,8 @@ Complete the task efficiently and accurately.
 
         elif event_type == "complete":
             status = event.get("status", "unknown")
+            self._flush_token_buffer(logs)
+            self._append_trace_line(logs, "complete", status)
             if self.verbose:
                 self.console.print(f"\n[dim]Status: {status}[/dim]")
 

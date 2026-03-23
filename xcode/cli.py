@@ -76,6 +76,16 @@ console = Console()
     help="Enable verbose output",
 )
 @click.option(
+    "--no-agent-stream",
+    is_flag=True,
+    help="Do not print the agent's live token stream (draft reasoning) from SSE",
+)
+@click.option(
+    "--agent-trace-recap",
+    is_flag=True,
+    help="After each agent task, print a chronological trace panel (tools, stream summary)",
+)
+@click.option(
     "--interactive",
     "-i",
     is_flag=True,
@@ -119,6 +129,8 @@ def main(
             llm_endpoint=llm_endpoint,
             use_local_llm=local,
             verbose=verbose,
+            agent_stream_tokens=not no_agent_stream,
+            agent_trace_recap=agent_trace_recap,
         )
 
         if use_interactive:

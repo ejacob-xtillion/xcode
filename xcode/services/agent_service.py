@@ -6,8 +6,9 @@ from rich.console import Console
 
 from xcode.domain.interfaces import AgentRepository
 from xcode.domain.models import AgentResult, Task, XCodeConfig
-from xcode.services.classification_service import ClassificationService
+from xcode.repositories.agent_repository import LaFactoriaRepository
 from xcode.repositories.cache_repository import InMemoryCacheRepository
+from xcode.services.classification_service import ClassificationService
 
 
 class AgentService:
@@ -68,6 +69,13 @@ class AgentService:
         llm_config['neo4j_uri'] = config.neo4j_uri
         llm_config['classification'] = classification
         llm_config['file_tree'] = file_tree
+
+        if isinstance(self.agent_repo, LaFactoriaRepository):
+            self.agent_repo.configure_display(
+                verbose=config.verbose,
+                stream_tokens=config.agent_stream_tokens,
+                trace_recap=config.agent_trace_recap,
+            )
 
         result = await self.agent_repo.execute_task(
             task=task,

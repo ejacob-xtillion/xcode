@@ -37,6 +37,7 @@ _COMMANDS = [
     "/status",
     "/model",
     "/verbose",
+    "/trace",
 ]
 
 
@@ -191,6 +192,7 @@ class InteractiveHandler:
             "/status": lambda: self._handle_status(),
             "/model": lambda: self._handle_model(args),
             "/verbose": lambda: self._handle_verbose(),
+            "/trace": lambda: self._handle_trace_recap(),
         }
 
         handler = dispatch.get(cmd)
@@ -250,6 +252,8 @@ class InteractiveHandler:
             ("language", self.config.language),
             ("model", self.config.model or "default"),
             ("verbose", str(self.config.verbose)),
+            ("agent_stream", str(self.config.agent_stream_tokens)),
+            ("trace_recap", str(self.config.agent_trace_recap)),
         ]
         for key, val in fields:
             lines.append(f"  {key:<10}", style="dim")
@@ -286,6 +290,12 @@ class InteractiveHandler:
         self.config.verbose = not self.config.verbose
         state = "on" if self.config.verbose else "off"
         self.console.print(Text(f"  ✓  verbose {state}", style="green"))
+
+    def _handle_trace_recap(self) -> None:
+        """Toggle post-task chronological trace panel (same as --agent-trace-recap)."""
+        self.config.agent_trace_recap = not self.config.agent_trace_recap
+        state = "on" if self.config.agent_trace_recap else "off"
+        self.console.print(Text(f"  ✓  trace recap {state}", style="green"))
 
     # ── Task execution ───────────────────────────────────────────────────────
 
@@ -391,8 +401,8 @@ class InteractiveHandler:
             if result.error:
                 self.console.print(Text(f"  Error: {result.error}", style="red"))
 
-        # Display logs if available and verbose mode is on
-        if self.config.verbose and result.logs:
-            self.console.print(Text("\n  Execution logs:", style="dim"))
+        # Footer trace only when verbose and repo did not already print trace recap panel
+        if result.logs and self.config.verbose and not self.config.agent_trace_recap:
+            self.console.print(Text("\n  Execution trace:", style="dim"))
             for log in result.logs:
                 self.console.print(Text(f"    {log}", style="dim"))

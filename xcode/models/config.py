@@ -22,6 +22,9 @@ class XCodeConfig:
     llm_endpoint: Optional[str] = None
     use_local_llm: bool = False
     verbose: bool = False
+    # Agent SSE display (la-factoria): live stream + optional recap panel
+    agent_stream_tokens: bool = True
+    agent_trace_recap: bool = False
 
     # Neo4j configuration (from environment)
     neo4j_uri: str = field(default_factory=lambda: os.getenv("NEO4J_URI", "bolt://localhost:7687"))
