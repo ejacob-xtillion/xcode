@@ -14,6 +14,8 @@ from pathlib import Path
 from typing import Optional
 
 from rich.console import Console
+
+from xcode.llm_compat import xgraph_openai_environ
 from rich.live import Live
 from rich.markdown import Markdown
 from rich.panel import Panel
@@ -76,6 +78,7 @@ class StartupOrchestrator:
         language: str,
         verbose: bool = False,
         enable_descriptions: bool = False,
+        openai_base_url: Optional[str] = None,
     ):
         self.console = console
         self.project_name = project_name
@@ -83,6 +86,7 @@ class StartupOrchestrator:
         self.language = language
         self.verbose = verbose
         self.enable_descriptions = enable_descriptions
+        self._openai_base_url = openai_base_url
         self.state = StartupState()
         self._build_thread: Optional[threading.Thread] = None
 
@@ -217,14 +221,15 @@ class StartupOrchestrator:
             sys.stdout = io.StringIO()
             sys.stderr = io.StringIO()
             
-            build_knowledge_graph(
-                project_path=str(self.repo_path),
-                language=self.language,
-                project_name=self.project_name,
-                enable_descriptions=self.enable_descriptions,
-                keep_existing_graph=True,
-                graph_db_type="neo4j",
-            )
+            with xgraph_openai_environ(self._openai_base_url):
+                build_knowledge_graph(
+                    project_path=str(self.repo_path),
+                    language=self.language,
+                    project_name=self.project_name,
+                    enable_descriptions=self.enable_descriptions,
+                    keep_existing_graph=True,
+                    graph_db_type="neo4j",
+                )
             
         finally:
             sys.stdout = old_stdout
@@ -242,10 +247,11 @@ class StartupOrchestrator:
         
         if self.enable_descriptions:
             cmd.append("--enable-descriptions")
-        
-        subprocess.run(
-            cmd,
-            capture_output=True,  # Suppress output
-            text=True,
-            check=True,
-        )
+
+        with xgraph_openai_environ(self._openai_base_url):
+            subprocess.run(
+                cmd,
+                capture_output=True,  # Suppress output
+                text=True,
+                check=True,
+            )

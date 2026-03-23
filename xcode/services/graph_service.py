@@ -51,6 +51,17 @@ class GraphService:
                 f"[green]✓[/green] Knowledge graph built for project: {project_name}"
             )
 
+    def build_graph(
+        self,
+        project_name: str,
+        repo_path: Path,
+        language: str,
+        *,
+        verbose: bool = False,
+    ) -> None:
+        """Build the knowledge graph (alias for :meth:`ensure_graph_exists`)."""
+        self.ensure_graph_exists(project_name, repo_path, language, verbose=verbose)
+
     def query_graph(self, cypher: str, params: dict | None = None) -> list[dict]:
         """
         Execute a Cypher query against the knowledge graph.

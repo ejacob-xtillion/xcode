@@ -29,9 +29,12 @@ class XCodeOrchestrator:
         """Initialize services and repositories."""
         self.task_service = TaskService()
 
+        _llm = self.config.get_llm_config()
         graph_repo = XGraphRepository(
             console=self.console,
             verbose=self.config.verbose,
+            enable_descriptions=self.config.xgraph_enable_descriptions,
+            openai_base_url=_llm.get("base_url"),
         )
         self.graph_service = GraphService(graph_repo, self.console)
 

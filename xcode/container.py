@@ -75,10 +75,13 @@ def create_container(config: XCodeConfig, console: Console = None) -> DIContaine
         console=console,
         verbose=config.verbose,
     )
-    
+
+    llm_cfg = config.get_llm_config()
     graph_repo = XGraphRepository(
         console=console,
         verbose=config.verbose,
+        enable_descriptions=config.xgraph_enable_descriptions,
+        openai_base_url=llm_cfg.get("base_url"),
     )
     
     cache_repo = InMemoryCacheRepository()

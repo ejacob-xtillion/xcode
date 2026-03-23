@@ -27,10 +27,12 @@ class GraphBuilder:
         )
         self.config = config
         self.console = console
+        _llm = config.get_llm_config()
         self._repository = XGraphRepository(
             console=console,
             verbose=config.verbose,
             enable_descriptions=config.xgraph_enable_descriptions,
+            openai_base_url=_llm.get("base_url"),
         )
 
     def build(self) -> None:

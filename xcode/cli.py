@@ -124,12 +124,15 @@ def main(
         if use_interactive:
             # ── Interactive mode ──────────────────────────────────────────────
             # Show startup experience with background graph building
+            _llm_cfg = config.get_llm_config()
             orchestrator = StartupOrchestrator(
                 project_name=config.project_name,
                 repo_path=config.repo_path,
                 language=config.language,
                 console=console,
                 verbose=verbose,
+                enable_descriptions=config.xgraph_enable_descriptions,
+                openai_base_url=_llm_cfg.get("base_url"),
             )
             orchestrator.start_with_welcome(build_graph=config.build_graph)
             
@@ -161,6 +164,9 @@ def main(
             )
             if config.llm_endpoint:
                 console.print(Text(f"    endpoint  {config.llm_endpoint}", style="dim"))
+                eff = config.get_llm_config().get("base_url")
+                if eff and eff != config.llm_endpoint:
+                    console.print(Text(f"    openai_api {eff}", style="dim"))
             console.print()
 
         # Create DI container and handler

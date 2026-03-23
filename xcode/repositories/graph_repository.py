@@ -3,10 +3,12 @@ Graph repository for knowledge graph building.
 """
 import subprocess
 from pathlib import Path
+from typing import Optional
 
 from rich.console import Console
 
 from xcode.domain.interfaces import GraphRepository
+from xcode.llm_compat import xgraph_openai_environ
 
 
 class XGraphRepository(GraphRepository):
@@ -16,10 +18,17 @@ class XGraphRepository(GraphRepository):
     Builds knowledge graphs using the xgraph library.
     """
     
-    def __init__(self, console: Console, verbose: bool = False, enable_descriptions: bool = False):
+    def __init__(
+        self,
+        console: Console,
+        verbose: bool = False,
+        enable_descriptions: bool = False,
+        openai_base_url: Optional[str] = None,
+    ):
         self.console = console
         self.verbose = verbose
         self.enable_descriptions = enable_descriptions
+        self._openai_base_url = openai_base_url
         self._driver = None
     
     def build_graph(self, project_name: str, repo_path: Path, language: str) -> None:
@@ -54,14 +63,15 @@ class XGraphRepository(GraphRepository):
             if self.verbose:
                 self.console.print("[dim]Building graph via xgraph library[/dim]")
 
-            build_knowledge_graph(
-                project_path=str(project_path),
-                language=language,
-                project_name=project_name,
-                enable_descriptions=enable_descriptions,
-                keep_existing_graph=True,  # Don't wipe other projects
-                graph_db_type="neo4j",
-            )
+            with xgraph_openai_environ(self._openai_base_url):
+                build_knowledge_graph(
+                    project_path=str(project_path),
+                    language=language,
+                    project_name=project_name,
+                    enable_descriptions=enable_descriptions,
+                    keep_existing_graph=True,  # Don't wipe other projects
+                    graph_db_type="neo4j",
+                )
 
         except Exception as e:
             raise RuntimeError(f"Failed to build knowledge graph via library: {e}")
@@ -92,12 +102,13 @@ class XGraphRepository(GraphRepository):
             if self.verbose:
                 self.console.print(f"[dim]Running: {' '.join(cmd)}[/dim]")
 
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                check=True,
-            )
+            with xgraph_openai_environ(self._openai_base_url):
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                )
 
             if self.verbose and result.stdout:
                 self.console.print(result.stdout)

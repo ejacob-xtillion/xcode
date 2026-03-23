@@ -4,12 +4,14 @@ LLM client for AI model interactions.
 
 import httpx
 
+from xcode.llm_compat import normalize_openai_compatible_base_url
+
 
 class LLMClient:
     """Client for LLM API operations."""
 
     def __init__(self, base_url: str | None = None, model: str = "gpt-5"):
-        self.base_url = base_url
+        self.base_url = normalize_openai_compatible_base_url(base_url) if base_url else None
         self.model = model
 
     async def chat_completion(

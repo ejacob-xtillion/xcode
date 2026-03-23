@@ -112,7 +112,7 @@ class TestXCodeConfig:
 
         llm_config = config.get_llm_config()
         assert llm_config["model"] == "llama3.2"
-        assert llm_config["base_url"] == "http://localhost:11434"
+        assert llm_config["base_url"] == "http://localhost:11434/v1"
 
     def test_neo4j_defaults(self, tmp_path):
         """Test Neo4j default configuration."""

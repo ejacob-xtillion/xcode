@@ -100,6 +100,11 @@ LangGraph Agent (agent/app/engine/xcode_coding_agent/)
 Tools: Neo4j (knowledge graph), Filesystem (read/write files)
 ```
 
+## Local LLM (Ollama)
+
+- **Knowledge graph (`xgraph`)**: `xcode --local` (or `XCODE_LLM_ENDPOINT`) normalizes Ollama to an OpenAI-compatible base URL (`http://localhost:11434/v1`) and sets `OPENAI_*` for xgraph while the graph builds. Start Ollama and pull a model (e.g. `ollama pull llama3.2`).
+- **Coding agent (la-factoria)**: The agent HTTP API uses the **agent server's** LLM env (`agent/.env`). For Ollama, set `LLM_BASE_URL` to `http://localhost:11434/v1` (or `http://host.docker.internal:11434/v1` from Docker) and `LLM_API_KEY=ollama` (or any non-empty placeholder Ollama accepts).
+
 ## Neo4j Knowledge Graph
 
 The agent queries a Neo4j knowledge graph containing:

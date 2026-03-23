@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
+from xcode.llm_compat import normalize_openai_compatible_base_url
+
 
 @dataclass
 class XCodeConfig:
@@ -104,5 +106,7 @@ class XCodeConfig:
             "model": self.model,
         }
         if self.llm_endpoint:
-            config["base_url"] = self.llm_endpoint
+            normalized = normalize_openai_compatible_base_url(self.llm_endpoint)
+            if normalized:
+                config["base_url"] = normalized
         return config

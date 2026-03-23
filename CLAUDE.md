@@ -116,8 +116,13 @@ xcode "task"                    # Run task
 xcode -i                        # Interactive mode
 xcode --verbose "task"          # Verbose output
 xcode --no-build-graph "task"   # Skip graph rebuild
-xcode --local "task"            # Use Ollama for graph building
+xcode --local "task"            # Ollama for xgraph (normalizes to http://localhost:11434/v1)
 ```
+
+### Local LLM (Ollama)
+
+- **`--local` / `XCODE_LLM_ENDPOINT`**: Used for **knowledge graph (xgraph)**. `get_llm_config()` normalizes port `11434` to an OpenAI-compatible base URL with `/v1`. xgraph runs with temporary `OPENAI_BASE_URL` / `OPENAI_API_KEY=ollama` during graph build (including interactive startup).
+- **La-factoria agent**: Uses **`agent/.env`** (`LLM_BASE_URL`, `LLM_MODEL`, etc.), not the CLI flags. For Ollama set e.g. `LLM_BASE_URL=http://localhost:11434/v1` (or `host.docker.internal` from containers).
 
 ---
 
