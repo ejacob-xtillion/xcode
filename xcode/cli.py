@@ -16,7 +16,8 @@ from rich.text import Text
 from xcode.banner import render_compact_header
 from xcode.container import create_container
 from xcode.models import XCodeConfig
-from xcode.requests import CLIRequestHandler
+from xcode.requests import CLIRequestHandler, InteractiveHandler
+from xcode.startup import StartupOrchestrator
 
 # Load environment variables
 load_dotenv()
@@ -121,9 +122,27 @@ def main(
         )
 
         if use_interactive:
-            console.print("[yellow]Interactive mode not yet implemented in RCSR architecture[/yellow]")
-            console.print("[dim]Use single-shot mode: xcode \"your task here\"[/dim]")
-            sys.exit(1)
+            # ── Interactive mode ──────────────────────────────────────────────
+            # Show startup experience with background graph building
+            orchestrator = StartupOrchestrator(
+                project_name=config.project_name,
+                repo_path=config.repo_path,
+                language=config.language,
+                console=console,
+                verbose=verbose,
+            )
+            orchestrator.start_with_welcome(build_graph=config.build_graph)
+            
+            # Create DI container and start interactive session
+            container = create_container(config, console)
+            handler = InteractiveHandler(
+                config=config,
+                task_service=container.task_service,
+                agent_service=container.agent_service,
+                console=console,
+            )
+            handler.run()
+            sys.exit(0)
 
         # ── Single-shot mode ──────────────────────────────────────────────
         render_compact_header(
