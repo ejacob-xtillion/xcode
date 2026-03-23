@@ -22,9 +22,9 @@ build:
 	docker-compose build
 
 up:
-	docker-compose up -d neo4j xcode-agent
-	@echo "⏳ Waiting for services to be healthy (this may take 60s)..."
-	@sleep 10
+	docker-compose up -d postgres neo4j xcode-agent
+	@echo "⏳ Waiting for services to be healthy (this may take 90s)..."
+	@sleep 15
 	@echo "✓ Backend services starting! Run 'make xcode' to start interactive mode"
 
 down:

@@ -27,11 +27,22 @@ docker-compose build xcode
 
 echo ""
 echo "🚀 Starting services..."
-docker-compose up -d neo4j xcode-agent
+docker-compose up -d postgres neo4j xcode-agent
 
 echo ""
 echo "⏳ Waiting for services to be healthy..."
-echo "   This may take up to 60 seconds..."
+echo "   This may take up to 90 seconds..."
+
+# Wait for PostgreSQL
+echo -n "   PostgreSQL: "
+for i in {1..20}; do
+    if docker-compose exec -T postgres pg_isready -U xagents_user -d xagents_db > /dev/null 2>&1; then
+        echo "✓ Ready"
+        break
+    fi
+    echo -n "."
+    sleep 2
+done
 
 # Wait for Neo4j
 echo -n "   Neo4j: "
@@ -46,7 +57,7 @@ done
 
 # Wait for xCode Agent
 echo -n "   xCode Agent: "
-for i in {1..30}; do
+for i in {1..40}; do
     if curl -s http://localhost:8000/health > /dev/null 2>&1; then
         echo "✓ Ready"
         break

@@ -1,9 +1,10 @@
 # Docker Setup for xCode
 
-This Docker setup orchestrates three services:
-1. **Neo4j** - Knowledge graph database
-2. **xCode Agent** - AI agent backend (la-factoria generated)
-3. **xCode CLI** - Interactive coding assistant
+This Docker setup orchestrates four services:
+1. **PostgreSQL** - Agent session storage
+2. **Neo4j** - Knowledge graph database
+3. **xCode Agent** - AI agent backend (la-factoria generated)
+4. **xCode CLI** - Interactive coding assistant
 
 ## Prerequisites
 
@@ -54,6 +55,12 @@ docker-compose run --rm xcode
 ```
 
 ## Service Details
+
+### PostgreSQL (Internal)
+- **Purpose**: Agent session and conversation storage
+- **Database**: xagents_db
+- **Credentials**: xagents_user/xagents_password
+- **Health Check**: pg_isready test
 
 ### Neo4j (Port 7474, 7687)
 - **Purpose**: Knowledge graph database for codebase analysis
