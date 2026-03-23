@@ -59,6 +59,7 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - NEO4J_URI=bolt://neo4j:7687
+      - NEO4J_USERNAME=neo4j
       - NEO4J_USER=neo4j
       - NEO4J_PASSWORD=password
       - DATABASE_URL=postgresql://xagents_user:xagents_password@postgres:5432/xagents_db
