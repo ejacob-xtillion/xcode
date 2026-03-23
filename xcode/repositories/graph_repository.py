@@ -20,6 +20,7 @@ class XGraphRepository(GraphRepository):
         self.console = console
         self.verbose = verbose
         self.enable_descriptions = enable_descriptions
+        self._driver = None
     
     def build_graph(self, project_name: str, repo_path: Path, language: str) -> None:
         """
@@ -109,3 +110,37 @@ class XGraphRepository(GraphRepository):
             raise RuntimeError(
                 "xgraph CLI not found. Please install xgraph: pip install xgraph"
             )
+    
+    def query(self, cypher: str, params: dict | None = None) -> list[dict]:
+        """
+        Execute a Cypher query and return results.
+        
+        Args:
+            cypher: Cypher query string
+            params: Query parameters
+            
+        Returns:
+            List of result records as dictionaries
+        """
+        if self._driver is None:
+            try:
+                from neo4j import GraphDatabase
+                import os
+                
+                uri = os.getenv("NEO4J_URI", "bolt://localhost:7687")
+                user = os.getenv("NEO4J_USER", "neo4j")
+                password = os.getenv("NEO4J_PASSWORD", "password")
+                
+                self._driver = GraphDatabase.driver(uri, auth=(user, password))
+            except ImportError:
+                raise RuntimeError("neo4j driver not installed. Install with: pip install neo4j")
+        
+        with self._driver.session() as session:
+            result = session.run(cypher, params or {})
+            return [dict(record) for record in result]
+    
+    def close(self) -> None:
+        """Close connection to graph database."""
+        if self._driver is not None:
+            self._driver.close()
+            self._driver = None

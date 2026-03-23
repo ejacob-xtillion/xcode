@@ -135,17 +135,21 @@ class ClassificationService:
         },
     }
     
-    def classify(self, task: Task) -> TaskClassification:
+    def classify(self, task: Task | str) -> TaskClassification:
         """
         Classify a task to determine optimal execution strategy.
         
         Args:
-            task: The task to classify
+            task: The task to classify (Task object or string description)
             
         Returns:
             TaskClassification with execution parameters
         """
-        task_lower = task.description.lower().strip()
+        # Handle both Task objects and string descriptions for backward compatibility
+        if isinstance(task, str):
+            task_lower = task.lower().strip()
+        else:
+            task_lower = task.description.lower().strip()
         
         # Try to match patterns in priority order
         priority_order = [
@@ -179,7 +183,8 @@ class ClassificationService:
         config = self.TASK_CONFIG[best_match]
         
         # Adjust based on task length and complexity
-        complexity_multiplier = self._assess_complexity(task.description)
+        task_description = task if isinstance(task, str) else task.description
+        complexity_multiplier = self._assess_complexity(task_description)
         
         return TaskClassification(
             task_type=best_match,
