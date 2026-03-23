@@ -64,6 +64,8 @@ class LaFactoriaRepository(AgentRepository):
         self._token_chunks: list[str] = []
         self._stream_printed = False
         self._tool_by_call_id: dict[str, str] = {}
+        # La-factoria emits tool_call twice per invocation (model stream + on_tool_start)
+        self._pending_tool_sig: str | None = None
 
     def configure_display(
         self,
@@ -149,6 +151,7 @@ class LaFactoriaRepository(AgentRepository):
         self._token_chunks = []
         self._stream_printed = False
         self._tool_by_call_id.clear()
+        self._pending_tool_sig = None
 
         try:
             self.console.print("\n[bold cyan]🤖 Connecting to la-factoria agent...[/bold cyan]")
@@ -177,15 +180,21 @@ class LaFactoriaRepository(AgentRepository):
                             try:
                                 event = json.loads(event_data)
 
+                                skip_tool_display = False
                                 if event.get("type") == "tool_call":
-                                    tool_calls.append(
-                                        {
-                                            "tool": event.get("tool"),
-                                            "args": event.get("args", {}),
-                                        }
-                                    )
+                                    if self._ingest_tool_call_sse(event):
+                                        tool_calls.append(
+                                            {
+                                                "tool": event.get("tool"),
+                                                "args": event.get("args", {}),
+                                            }
+                                        )
+                                    else:
+                                        skip_tool_display = True
 
-                                self._handle_event(event, logs)
+                                self._handle_event(
+                                    event, logs, skip_tool_call_display=skip_tool_display
+                                )
 
                                 if event.get("type") == "session_created":
                                     session_id = event.get("session_id")
@@ -366,6 +375,32 @@ Complete the task efficiently and accurately.
 
         return "\n".join(lines)
 
+    @staticmethod
+    def _tool_call_signature(tool: str, args: object) -> str:
+        """Stable key for deduplicating duplicate tool_call SSE (stream + on_tool_start)."""
+        try:
+            normalized = json.dumps(args, sort_keys=True, default=str)
+        except TypeError:
+            normalized = repr(args)
+        return f"{tool}\0{normalized}"
+
+    def _ingest_tool_call_sse(self, event: dict) -> bool:
+        """
+        Register tool_call_id for result matching; return True if we should print/count
+        this event. La-factoria emits two tool_call events per invocation (model stream
+        + LangGraph on_tool_start) with the same tool/args.
+        """
+        tool = event.get("tool", "unknown")
+        args = event.get("args", {})
+        tcid = str(event.get("tool_call_id") or "")
+        if tcid:
+            self._tool_by_call_id[tcid] = tool
+        sig = self._tool_call_signature(tool, args)
+        if sig == self._pending_tool_sig:
+            return False
+        self._pending_tool_sig = sig
+        return True
+
     def _append_trace_line(self, logs: list[str], kind: str, summary: str) -> None:
         """Numbered chronological entry for DX and optional recap."""
         self._trace_seq += 1
@@ -381,7 +416,9 @@ Complete the task efficiently and accurately.
         preview = self._truncate(full.replace("\n", " "), 220)
         self._append_trace_line(logs, "stream", f"{len(full)} chars — {preview}")
 
-    def _handle_event(self, event: dict, logs: list) -> None:
+    def _handle_event(
+        self, event: dict, logs: list, *, skip_tool_call_display: bool = False
+    ) -> None:
         """Handle a streaming event from la-factoria."""
         event_type = event.get("type")
 
@@ -414,12 +451,11 @@ Complete the task efficiently and accurately.
                 self._stream_printed = True
 
         elif event_type == "tool_call":
+            if skip_tool_call_display:
+                return
             self.tool_call_counter += 1
             tool = event.get("tool", "unknown")
             args = event.get("args", {})
-            tcid = event.get("tool_call_id") or ""
-            if tcid:
-                self._tool_by_call_id[tcid] = tool
 
             # Always show tool calls with context
             tool_display = self._format_tool_call(tool, args)
@@ -433,6 +469,7 @@ Complete the task efficiently and accurately.
                 self.console.print(f"[dim]{args_str}[/dim]")
 
         elif event_type == "tool_result":
+            self._pending_tool_sig = None
             is_error = event.get("is_error", False)
             content = event.get("content", "")
 
