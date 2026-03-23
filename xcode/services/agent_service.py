@@ -53,7 +53,7 @@ class AgentService:
         file_tree = None
         from xcode.models import TaskType
         file_operation_tasks = {
-            TaskType.CREATE_FILE,
+            TaskType.CREATE_NEW_FILE,
             TaskType.DELETE_FILES,
             TaskType.MODIFY_EXISTING,
         }
