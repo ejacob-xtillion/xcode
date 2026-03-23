@@ -21,6 +21,25 @@ services:
     networks:
       - xcode-network
 
+  # PostgreSQL database for xCode Agent (optional - agent can run without it)
+  postgres:
+    image: postgres:15-alpine
+    container_name: xcode-postgres
+    environment:
+      - POSTGRES_USER=xagents_user
+      - POSTGRES_PASSWORD=xagents_password
+      - POSTGRES_DB=xagents_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U xagents_user -d xagents_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    networks:
+      - xcode-network
+
   # xCode Agent API (la-factoria generated agent)
   xcode-agent:
     container_name: xcode-agent
@@ -42,8 +61,16 @@ services:
       - NEO4J_URI=bolt://neo4j:7687
       - NEO4J_USER=neo4j
       - NEO4J_PASSWORD=password
+      - DATABASE_URL=postgresql://xagents_user:xagents_password@postgres:5432/xagents_db
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=xagents_user
+      - POSTGRES_PASSWORD=xagents_password
+      - POSTGRES_DB=xagents_db
     depends_on:
       neo4j:
+        condition: service_healthy
+      postgres:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -85,6 +112,7 @@ services:
 volumes:
   neo4j_data:
   neo4j_logs:
+  postgres_data:
 
 networks:
   xcode-network:
