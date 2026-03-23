@@ -2,43 +2,13 @@
 Agent repository for la-factoria integration.
 """
 import json
-from abc import ABC, abstractmethod
 from typing import Optional
 
 import httpx
 from rich.console import Console
 
+from xcode.domain.interfaces import AgentRepository
 from xcode.models import Task, TaskClassification, AgentResult, FileTreeCache, TaskType
-
-
-class AgentRepository(ABC):
-    """Abstract interface for agent execution."""
-
-    @abstractmethod
-    async def run_agent(
-        self,
-        task: Task,
-        classification: TaskClassification,
-        file_tree: Optional[FileTreeCache],
-        schema_text: str,
-        neo4j_uri: str,
-        conversation_context: str = "",
-    ) -> AgentResult:
-        """
-        Run the agent with the given task.
-
-        Args:
-            task: Task to execute
-            classification: Task classification
-            file_tree: Optional file tree cache
-            schema_text: Neo4j schema documentation
-            neo4j_uri: Neo4j connection URI
-            conversation_context: Previous conversation history
-
-        Returns:
-            AgentResult with execution status
-        """
-        pass
 
 
 class LaFactoriaRepository(AgentRepository):
@@ -70,17 +40,50 @@ class LaFactoriaRepository(AgentRepository):
         self.verbose = verbose
         self.tool_call_counter = 0
 
-    async def run_agent(
+    async def execute_task(
         self,
         task: Task,
-        classification: TaskClassification,
+        config: dict,
+        schema: str,
+        conversation_context: str = "",
+    ) -> AgentResult:
+        """
+        Execute a task using an AI agent.
+        
+        Args:
+            task: Task to execute
+            config: LLM configuration dict
+            schema: Neo4j schema documentation
+            conversation_context: Previous conversation history
+            
+        Returns:
+            AgentResult with execution status
+        """
+        # Extract parameters from task and config
+        classification = task.classification if hasattr(task, 'classification') else None
+        file_tree = task.file_tree if hasattr(task, 'file_tree') else None
+        neo4j_uri = config.get('neo4j_uri', 'bolt://localhost:7687')
+        
+        return await self._run_agent_internal(
+            task=task,
+            classification=classification,
+            file_tree=file_tree,
+            schema_text=schema,
+            neo4j_uri=neo4j_uri,
+            conversation_context=conversation_context,
+        )
+    
+    async def _run_agent_internal(
+        self,
+        task: Task,
+        classification: Optional[TaskClassification],
         file_tree: Optional[FileTreeCache],
         schema_text: str,
         neo4j_uri: str,
         conversation_context: str = "",
     ) -> AgentResult:
         """
-        Run the agent via la-factoria API with streaming.
+        Internal method to run the agent via la-factoria API with streaming.
 
         Args:
             task: Task to execute
