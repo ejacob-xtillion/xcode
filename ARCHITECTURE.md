@@ -1,10 +1,20 @@
-# xCode Clean Architecture
+# xCode Architecture
 
-This document describes the clean architecture implementation for xCode.
+This document describes the architecture of xCode, a monorepo containing the CLI and AI Agent.
 
-## Overview
+## Monorepo Structure
 
-xCode follows **Clean Architecture** principles with clear separation of concerns across four layers:
+```
+xcode/
+├── xcode/          # CLI package (Clean Architecture)
+├── agent/          # AI Agent (FastAPI + LangGraph)
+├── tests/          # CLI tests
+└── docker-compose.yml
+```
+
+## CLI Architecture (Clean Architecture)
+
+The CLI follows **Clean Architecture** principles with clear separation of concerns across four layers:
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -351,8 +361,47 @@ xcode/
 - Add integration tests for full workflows
 - Add performance benchmarks
 
+## Agent Architecture
+
+The AI Agent (`agent/`) is a separate FastAPI application using LangGraph:
+
+```
+agent/
+├── app/
+│   ├── api/agents/          # REST API endpoints
+│   │   ├── routes.py        # POST /agents endpoint
+│   │   ├── service.py       # Agent session management
+│   │   └── models.py        # Request/response models
+│   ├── engine/
+│   │   ├── xcode_coding_agent/
+│   │   │   ├── agent.py     # LangGraph agent creation
+│   │   │   └── prompt.py    # System prompt
+│   │   ├── stream_processor.py  # SSE event conversion
+│   │   └── mcp_tools.py     # MCP tool integration
+│   └── core/
+│       ├── settings.py      # Configuration
+│       └── db/              # PostgreSQL models
+└── Dockerfile
+```
+
+### Agent Communication
+
+The CLI communicates with the Agent via HTTP/SSE:
+
+1. CLI sends `POST /agents` with task description
+2. Agent streams SSE events: `tool_call`, `tool_result`, `token`, `answer`
+3. CLI displays progress and final response
+
+### MCP Tools
+
+The Agent uses Model Context Protocol (MCP) tools:
+- **Neo4j**: Query knowledge graph (`read_neo4j_cypher`)
+- **Filesystem**: Read/write files (`read_file`, `write_file`, `edit_file`)
+
 ## References
 
 - [Clean Architecture by Robert C. Martin](https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html)
 - [Hexagonal Architecture](https://alistair.cockburn.us/hexagonal-architecture/)
 - [Domain-Driven Design](https://martinfowler.com/bliki/DomainDrivenDesign.html)
+- [LangGraph Documentation](https://langchain-ai.github.io/langgraph/)
+- [Model Context Protocol](https://modelcontextprotocol.io/)

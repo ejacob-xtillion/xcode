@@ -2,93 +2,52 @@
 
 > AI-powered coding assistant with codebase knowledge graphs
 
-xCode is a CLI tool inspired by Claude Code that integrates:
-- **xgraph**: Codebase knowledge graphs in Neo4j
-- **la-factoria**: On-the-fly agent spawning
-- **Local LLM support**: Run with Ollama, LM Studio, or any OpenAI-compatible endpoint
+xCode is a monorepo containing:
+- **CLI** (`xcode/`): Command-line interface for coding tasks
+- **Agent** (`agent/`): FastAPI + LangGraph AI agent with MCP tools
 
 ## Features
 
 - 🔍 **Knowledge Graph Integration**: Understands your codebase structure via Neo4j
-- 🤖 **AI Agents**: Spawns agents to complete coding tasks
-- 💻 **Local LLM Support**: Works with Ollama, LM Studio, llama.cpp, or cloud APIs
-- 🔄 **Verification Loop**: Automatically runs tests and linters, iterates until success
-- 🎯 **Multi-Language**: Supports Python and C#
+- 🤖 **AI Agent**: LangGraph-based agent with MCP tools (Neo4j, filesystem)
+- 💻 **Local LLM Support**: Works with Ollama, LM Studio, or cloud APIs
+- 🔄 **Verification Loop**: Automatically runs tests and linters
 - 📊 **Rich CLI**: Beautiful terminal UI with progress indicators
-- 🏗️ **Clean Architecture**: Modular design with domain, service, repository, and infrastructure layers
-- ⚡ **Performance Optimized**: Smart task classification skips unnecessary graph builds
+- 🏗️ **Clean Architecture**: Modular design with clear separation of concerns
 
 ## Quick Start
 
-### Installation
+### Docker (Recommended)
 
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/xcode.git
-cd xcode
+# Configure agent
+cp agent/.env.example agent/.env
+# Edit agent/.env and set OPENAI_API_KEY
 
-# Install in development mode
+# Start all services
+docker-compose up -d
+
+# Run xCode interactively
+docker-compose exec xcode xcode -i
+
+# Or run a single task
+docker-compose exec xcode xcode "add type hints to all functions"
+```
+
+### Local Development
+
+```bash
+# Start backend services
+docker-compose up -d neo4j postgres xcode-agent
+
+# Install CLI locally
 pip install -e .
 
-# Or install from PyPI (when published)
-pip install xcode-cli
+# Run xCode
+xcode --local "your task here"
 ```
 
-### Prerequisites
-
-1. **Neo4j**: Running instance for knowledge graphs
-   ```bash
-   # Using Docker
-   docker run -p 7687:7687 -p 7474:7474 -e NEO4J_AUTH=neo4j/password neo4j
-   ```
-
-2. **xgraph**: For building knowledge graphs
-   ```bash
-   pip install xgraph
-   ```
-
-3. **LLM** (choose one):
-   - **Ollama** (local): `brew install ollama && ollama pull llama3.2`
-   - **LM Studio** (local): Download from lmstudio.ai
-   - **OpenAI** (cloud): Set `OPENAI_API_KEY` environment variable
-
-### Environment Variables
-
-Create a `.env` file:
-
-```bash
-# Neo4j Configuration
-NEO4J_URI=bolt://localhost:7687
-NEO4J_USER=neo4j
-NEO4J_PASSWORD=password
-
-# Optional: LLM Configuration
-XCODE_MODEL=llama3.2                    # Default model name
-XCODE_LLM_ENDPOINT=http://localhost:11434  # For local LLM
-
-# Optional: xgraph Configuration
-XGRAPH_ENABLE_DESCRIPTIONS=false  # Enable LLM-generated descriptions in graph
-```
-
-## Usage
-
-### Basic Usage
-
-```bash
-# Run with cloud LLM (OpenAI)
-xcode "add type hints to all functions"
-
-# Specify repository path
-xcode --path /path/to/repo "refactor database client"
-
-# Use local LLM (Ollama)
-xcode --local "fix flaky tests in auth module"
-
-# Custom local endpoint and model
-xcode --llm-endpoint http://localhost:1234 --model codellama "optimize query performance"
-```
-
-### CLI Options
+## CLI Options
 
 ```
 Options:
@@ -96,151 +55,66 @@ Options:
   --language, -l LANG      Language: python or csharp (default: python)
   --project-name NAME      Project name for knowledge graph
   --no-build-graph         Skip building knowledge graph
-  --model NAME             LLM model (e.g., gpt-4, llama3.2, codellama)
+  --model NAME             LLM model for graph building
   --llm-endpoint URL       Base URL for local LLM API
   --local                  Use local LLM (Ollama at localhost:11434)
   --verbose, -v            Enable verbose output
+  -i, --interactive        Interactive mode
   --help                   Show this message and exit
 ```
 
-### Examples
+## Repository Structure
 
-```bash
-# Add retry logic with exponential backoff
-xcode "add retry logic with exponential backoff to API client"
-
-# Find and fix type errors
-xcode --verbose "find and fix all mypy type errors"
-
-# Refactor with specific model
-xcode --model gpt-4-turbo "refactor user authentication to use JWT"
-
-# Local LLM with custom endpoint (LM Studio)
-xcode --llm-endpoint http://localhost:1234/v1 --model mistral "optimize database queries"
-
-# C# project
-xcode --path /path/to/csharp/project --language csharp "add logging to all controllers"
-
-# Skip graph rebuild (graph already exists)
-xcode --no-build-graph "update API documentation"
+```
+xcode/
+├── xcode/                    # CLI package
+│   ├── cli.py               # Click CLI entry point
+│   ├── orchestrator.py      # Main orchestrator
+│   ├── services/            # Business logic
+│   ├── repositories/        # External adapters
+│   └── domain/              # Models & interfaces
+├── agent/                    # AI Agent (FastAPI + LangGraph)
+│   ├── app/
+│   │   ├── api/agents/      # Agent API
+│   │   ├── engine/          # Agent implementation
+│   │   └── core/            # Settings, DB, middleware
+│   └── Dockerfile
+├── docker-compose.yml       # Full stack orchestration
+├── tests/                   # CLI tests
+└── pyproject.toml          # CLI dependencies
 ```
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                         xCode CLI                        │
-├─────────────────────────────────────────────────────────┤
-│                                                          │
-│  1. Ensure Knowledge Graph Exists (xgraph)              │
-│     ├─ Parse codebase AST                               │
-│     ├─ Build nodes and relationships                    │
-│     └─ Write to Neo4j                                   │
-│                                                          │
-│  2. Spawn Agent (la-factoria stub)                      │
-│     ├─ Pass task description                            │
-│     ├─ Configure Neo4j MCP                              │
-│     ├─ Provide graph schema                             │
-│     ├─ Configure LLM (local or cloud)                   │
-│     └─ Provide tools (read, write, run, query)          │
-│                                                          │
-│  3. Verification Loop                                   │
-│     ├─ Run tests (pytest / dotnet test)                 │
-│     ├─ Run linter (ruff / dotnet format)                │
-│     ├─ Capture stdout, stderr, exit codes               │
-│     ├─ Pass logs back to agent                          │
-│     └─ Iterate until success or max iterations          │
-│                                                          │
-└─────────────────────────────────────────────────────────┘
+CLI (xcode/cli.py)
+    ↓
+Orchestrator (xcode/orchestrator.py)
+    ↓
+Agent Repository (xcode/repositories/agent_repository.py)
+    ↓ HTTP/SSE
+Agent API (agent/app/api/agents/)
+    ↓
+LangGraph Agent (agent/app/engine/xcode_coding_agent/)
+    ↓ MCP
+Tools: Neo4j (knowledge graph), Filesystem (read/write files)
 ```
 
-## Project Structure
+## Neo4j Knowledge Graph
 
-xCode follows **Clean Architecture** principles with clear separation of concerns:
-
-```
-xcode/
-├── xcode/
-│   ├── domain/              # Pure business logic & interfaces
-│   │   ├── interfaces.py    # Repository contracts (DIP)
-│   │   └── models.py        # Domain model re-exports
-│   │
-│   ├── models/              # Domain model implementations
-│   │   ├── classification.py
-│   │   ├── config.py
-│   │   ├── file_info.py
-│   │   ├── result.py
-│   │   └── task.py
-│   │
-│   ├── services/            # Business logic orchestration
-│   │   ├── task_service.py
-│   │   ├── graph_service.py
-│   │   ├── agent_service.py
-│   │   └── verification_service.py
-│   │
-│   ├── repositories/        # Data access abstractions
-│   │   ├── graph_repository.py
-│   │   ├── file_repository.py
-│   │   └── agent_repository.py
-│   │
-│   ├── infrastructure/      # External system clients
-│   │   ├── neo4j_client.py
-│   │   └── llm_client.py
-│   │
-│   ├── cli.py               # CLI entry point
-│   ├── interactive.py       # Interactive mode
-│   ├── orchestrator.py      # Main orchestration
-│   └── [legacy modules]     # Backward compatibility
-│
-├── tests/                   # 121 tests, 46% coverage
-├── docs/                    # Additional documentation
-│   ├── performance/         # Performance analysis & benchmarks
-│   └── MERGE_CONFLICT_GUIDE.md
-├── ARCHITECTURE.md          # Clean architecture details
-├── pyproject.toml           # Package configuration
-└── README.md                # This file
-```
-
-See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed architecture documentation.
-
-## Neo4j Schema
-
-The knowledge graph contains:
+The agent queries a Neo4j knowledge graph containing:
 
 **Node Types:**
-- `Project`: Root project container
-- `Folder`: Directory structure
-- `File`: Source code files
-- `Class`: Class definitions
-- `Callable`: Functions and methods
-- `Test`: Test functions
-- `Module`: Imported modules
-- `Variable`: Variable declarations
+- `Project`, `Folder`, `File`, `Class`, `Callable`, `Test`, `Module`, `Variable`
 
 **Relationship Types:**
-- `DECLARED_IN`: Element declared in File/Class
-- `IMPORTS`: File imports Module
-- `INHERITS_FROM`: Class inheritance
-- `USES`: Code element uses another
-- `TESTS`: Test covers code element
-- `INCLUDED_IN`: Containment hierarchy
+- `DECLARED_IN`, `IMPORTS`, `INHERITS_FROM`, `USES`, `TESTS`, `INCLUDED_IN`
 
-**Example Queries:**
+**Example Query:**
 ```cypher
-// Find callables that use a specific class
-MATCH (c:Callable)-[:USES]->(target)
-WHERE target.name CONTAINS 'PaymentClient'
-RETURN c.name, c.path, c.line_number
-
-// Find tests for a callable
-MATCH (t:Test)-[:TESTS]->(c:Callable {name: 'process_payment'})
-RETURN t.name, t.path
-
-// Find untested code
-MATCH (p:Project {name: $projectName})
-MATCH (p)<-[:INCLUDED_IN*]-(f:File)<-[:DECLARED_IN]-(c:Callable)
-WHERE NOT (c:Test) AND NOT EXISTS((c)<-[:TESTS]-())
-RETURN c.name, c.path
+MATCH (f:File)<-[:DECLARED_IN]-(c:Callable)
+WHERE NOT EXISTS((c)<-[:TESTS]-())
+RETURN c.name, f.path
 ```
 
 ## Development
@@ -248,134 +122,43 @@ RETURN c.name, c.path
 ### Running Tests
 
 ```bash
-# Run all tests
-pytest
-
-# Run specific test module
-pytest tests/test_config.py -v
-
-# Run with coverage
+pytest tests/ -v
 pytest --cov=xcode --cov-report=html
-
-# Run tests in parallel
-pytest -n auto
 ```
 
 ### Code Quality
 
 ```bash
-# Format code
 black xcode tests
-
-# Lint
 ruff check xcode tests
-
-# Type check
 mypy xcode
 ```
 
-### Git Workflow
+## Environment Variables
 
-This project follows a structured SDLC with feature branches:
-
+### CLI (.env)
 ```bash
-# Recent feature branches
-feature/rcsr-architecture      # Clean architecture refactoring
-perf/latency-analysis         # Performance optimizations
-feature/file-tree-cache       # File caching system
-feature/smart-recursion-limits # Task classification
-
-# All merged to main via structured commits
+NEO4J_URI=bolt://localhost:7687
+NEO4J_USER=neo4j
+NEO4J_PASSWORD=password
+LA_FACTORIA_URL=http://localhost:8000
 ```
 
-## Integration with la-factoria
-
-The current implementation includes a **stub** for la-factoria integration that shows all the integration points. To integrate with a real la-factoria instance:
-
-1. **Replace the stub** in `xcode/agent_runner.py` with actual la-factoria API calls
-2. **Ensure la-factoria** accepts:
-   - Task description
-   - Repository path and project name
-   - Neo4j MCP configuration
-   - LLM configuration (model, base_url)
-   - Schema context
-3. **Ensure tools return** full logs (stdout, stderr, exit codes)
-4. **Stream output** from agent to console
-
-## Local LLM Setup
-
-### Ollama
-
+### Agent (agent/.env)
 ```bash
-# Install Ollama
-brew install ollama  # macOS
-# or download from https://ollama.ai
-
-# Pull a model
-ollama pull llama3.2
-ollama pull codellama
-
-# Run xCode
-xcode --local "your task here"
+OPENAI_API_KEY=your-key
+NEO4J_URI=bolt://neo4j:7687
+NEO4J_USERNAME=neo4j
+NEO4J_PASSWORD=password
 ```
 
-### LM Studio
+## Documentation
 
-1. Download from https://lmstudio.ai
-2. Load a model (e.g., CodeLlama, Mistral)
-3. Start the local server (port 1234 by default)
-4. Run xCode:
-   ```bash
-   xcode --llm-endpoint http://localhost:1234/v1 --model <model-name> "your task"
-   ```
-
-### llama.cpp Server
-
-```bash
-# Start llama.cpp server
-./server -m /path/to/model.gguf --port 8080
-
-# Run xCode
-xcode --llm-endpoint http://localhost:8080 --model llama "your task"
-```
-
-## Roadmap
-
-- [ ] Full la-factoria integration (replace stub)
-- [ ] Support for more languages (TypeScript, Go, Rust)
-- [ ] Web UI for monitoring agent progress
-- [ ] Incremental graph updates (only changed files)
-- [ ] Agent conversation history and replay
-- [ ] Integration with CI/CD pipelines
-- [ ] Custom tool definitions for agents
-- [ ] Multi-agent collaboration
-
-## Contributing
-
-Contributions are welcome! Please:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Write tests for your changes
-4. Ensure all tests pass (`pytest`)
-5. Format code (`black xcode tests`)
-6. Commit with structured messages
-7. Push and create a Pull Request
+- [CLAUDE.md](CLAUDE.md) - Project guide for AI assistants
+- [DOCKER.md](DOCKER.md) - Docker setup instructions
+- [ARCHITECTURE.md](ARCHITECTURE.md) - Clean architecture details
+- [agent/README.md](agent/README.md) - Agent documentation
 
 ## License
 
 MIT License - see LICENSE file for details
-
-## Acknowledgments
-
-- **xgraph**: Codebase knowledge graph builder
-- **la-factoria**: Agent orchestration framework
-- **Ollama**: Local LLM runtime
-- **Neo4j**: Graph database
-- **Rich**: Beautiful terminal UI
-
-## Support
-
-- Issues: https://github.com/yourusername/xcode/issues
-- Discussions: https://github.com/yourusername/xcode/discussions
-- Documentation: https://github.com/yourusername/xcode/wiki
