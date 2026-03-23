@@ -40,12 +40,20 @@ def run_shell_command(command: str, working_directory: str) -> str:
 
     allowed = settings.get_shell_allowed_roots()
     try:
+        logger.info(
+            "shell_command_started",
+            cwd=working_directory,
+            command_preview=command[:200] if command else "",
+        )
         result = run_shell_command_impl(
             command,
             working_directory,
             allowed_roots=allowed,
             timeout=settings.shell_command_timeout_seconds,
             max_output_bytes=settings.shell_max_output_bytes,
+            auto_install_requirements=settings.shell_auto_install_requirements,
+            skip_redundant_requirements_install=settings.shell_skip_redundant_requirements_install,
+            pip_install_timeout=settings.shell_pip_install_timeout_seconds,
         )
         logger.info("shell_command_finished", cwd=working_directory)
         return result

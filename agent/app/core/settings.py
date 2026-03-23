@@ -138,6 +138,20 @@ class AppSettings(BaseSettings):
         le=2_097_152,
         description="Truncate combined stdout+stderr beyond this many bytes",
     )
+    shell_auto_install_requirements: bool = Field(
+        default=True,
+        description="If requirements.txt exists in cwd, run uv/pip install -r before pytest-like commands",
+    )
+    shell_skip_redundant_requirements_install: bool = Field(
+        default=True,
+        description="Skip repeat installs when requirements.txt + cwd + Python path unchanged (in-process cache)",
+    )
+    shell_pip_install_timeout_seconds: int = Field(
+        default=300,
+        ge=30,
+        le=1800,
+        description="Timeout for automatic requirements.txt install (uv pip or python -m pip)",
+    )
 
     # Streaming Configuration
     stream_timeout: int = Field(default=1200, description="Streaming timeout in seconds (default: 20 minutes)")

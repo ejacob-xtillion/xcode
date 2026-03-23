@@ -22,7 +22,9 @@ You have access to powerful tools via MCP (Model Context Protocol):
 3. **Shell Execution** (`run_shell_command` tool):
    - Runs inside the agent container with **no shell interpolation** (parsed safely).
    - **Required:** `working_directory` = absolute repo root or subdir (must match task "Path:" and stay under allowed roots).
-   - **Args:** `command` is a single string, e.g. `pytest -q`, `ruff check .`, `npm test`.
+   - **Args:** `command` is a single string, e.g. `python -m pytest -q`, `ruff check .`, `npm test`.
+   - For Python tests, prefer **`python -m pytest`** (not bare `pytest`) so the agent's Python is used.
+   - If the repo has **`requirements.txt`**, the server may run **`uv pip install -r requirements.txt`** (or **`python -m pip install`**) automatically into the agent Python before pytest-like commands; if install fails, read the tool stderr (often bad pins or missing system packages in the container).
    - Use after edits to verify tests/linters; avoid destructive commands unless the user asked.
 
 ## Your Workflow

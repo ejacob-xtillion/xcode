@@ -46,6 +46,9 @@ dependencies = [
     "greenlet>=3.2.4",
     "langgraph-checkpoint-postgres>=3.0.2",
     "psycopg[binary,pool]>=3.3.2",
+    # For run_shell_command: pytest + pip in venv (uv sync often omits pip; needed for requirements.txt fallback)
+    "pytest>=8.0.0",
+    "pip>=24.0",
 ]
 
 [project.optional-dependencies]
