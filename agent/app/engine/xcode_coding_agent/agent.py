@@ -15,6 +15,7 @@ from app.engine.xcode_coding_agent.prompt import SYSTEM_PROMPT
 
 # Agent-specific imports
 
+from app.engine.agent_tool_config import XCODE_CODING_AGENT_MCP_SERVERS
 from app.engine.mcp_tools import get_tool_discovery
 from app.engine.custom_tools import get_all_tools as get_custom_tools
 
@@ -45,21 +46,18 @@ async def create_agent_instance(
     # Tool handling based on agent type
     
 
-    # Resolve custom tools once (filter by allow or deny)
+    # Resolve custom tools (e.g. run_shell_command when enabled)
     custom_tools = get_custom_tools()
-    
-    custom_tools = []
-    
 
     # Use provided tools if available, otherwise discover tools
     if tools is None:
         discovery = get_tool_discovery()
         all_tools = {}
-        
-        # Only discover tools from agent's configured MCP servers
-        
-        for server_name in ["neo4j", "filesystem"]:
-            server_tools = await discovery.discover_server_tools(server_name, headers=headers, request=request)
+
+        for server_name in XCODE_CODING_AGENT_MCP_SERVERS:
+            server_tools = await discovery.discover_server_tools(
+                server_name, headers=headers, request=request
+            )
             all_tools[server_name] = server_tools
         
         

@@ -26,6 +26,7 @@ from app.api.agents.models import (
     QueryResultPair,
 )
 
+from app.engine.agent_tool_config import XCODE_CODING_AGENT_MCP_SERVERS
 from app.engine.xcode_coding_agent.agent import create_agent_instance as create_xcode_coding_agent_instance
 
 from app.engine.stream_processor import AgentStreamProcessor
@@ -53,7 +54,7 @@ class AgentService:
             
             "xcode_coding_agent": {
                 "agent_type": "simple_agent",
-                "mcpServers": ["neo4j", "filesystem"],
+                "mcpServers": list(XCODE_CODING_AGENT_MCP_SERVERS),
                 "tools": 
                     {
                     

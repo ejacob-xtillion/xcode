@@ -116,9 +116,47 @@ class AppSettings(BaseSettings):
             self.mcp_servers['neo4j']['env']['NEO4J_URI'] = neo4j_uri
     mcp_tool_cache_ttl_seconds: int = Field(default=1800, description="MCP tool discovery cache TTL in seconds (default: 30 minutes)")
 
+    # Shell tool (custom LangChain tool — runs inside the agent process/container)
+    shell_tool_enabled: bool = Field(
+        default=True,
+        description="When false, run_shell_command is not registered with the agent",
+    )
+    shell_allowed_roots_csv: Optional[str] = Field(
+        default=None,
+        description="Comma-separated absolute paths; cwd must resolve under one of these. "
+        "If unset, uses the filesystem MCP server's allowed directory (last arg).",
+    )
+    shell_command_timeout_seconds: int = Field(
+        default=120,
+        ge=1,
+        le=3600,
+        description="Max seconds for a single shell command",
+    )
+    shell_max_output_bytes: int = Field(
+        default=65536,
+        ge=1024,
+        le=2_097_152,
+        description="Truncate combined stdout+stderr beyond this many bytes",
+    )
+
     # Streaming Configuration
     stream_timeout: int = Field(default=1200, description="Streaming timeout in seconds (default: 20 minutes)")
 
+
+    def get_shell_allowed_roots(self) -> list[str]:
+        """Absolute directories under which run_shell_command may set cwd (after realpath)."""
+        if self.shell_allowed_roots_csv and self.shell_allowed_roots_csv.strip():
+            return [
+                p.strip()
+                for p in self.shell_allowed_roots_csv.split(",")
+                if p.strip()
+            ]
+        fs = self.mcp_servers.get("filesystem") or {}
+        args = fs.get("args") or []
+        if args:
+            # @modelcontextprotocol/server-filesystem: last arg is the allowed root
+            return [str(args[-1])]
+        return ["/Users/elijahgjacob"]
 
     @property
     def is_development(self) -> bool:

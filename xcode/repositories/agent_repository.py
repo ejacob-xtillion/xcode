@@ -255,7 +255,7 @@ class LaFactoriaRepository(AgentRepository):
             f"""
 **Knowledge Graph:**
 You have access to a Neo4j knowledge graph containing the complete codebase
-structure. Use the neo4j_query tool to understand code relationships, find
+structure. Use the read_neo4j_cypher tool to understand code relationships, find
 dependencies, and locate relevant code.
 
 **Neo4j Connection:**
@@ -267,10 +267,9 @@ dependencies, and locate relevant code.
 {schema_text}
 
 **Available Tools:**
-- neo4j_query: Query the knowledge graph to understand code structure
-- read_file: Read files from the repository
-- write_file: Modify files in the repository
-- run_shell: Execute shell commands (tests, linters, etc.)
+- read_neo4j_cypher: Query the knowledge graph (Cypher)
+- read_text_file / write_file / edit_file (and related): Filesystem MCP tools — use absolute paths under the repo
+- run_shell_command: Run tests/linters; pass command string and working_directory (absolute repo path)
 
 **Instructions:**
 1. Use Neo4j queries to understand the codebase structure
@@ -424,9 +423,13 @@ Complete the task efficiently and accurately.
         elif tool == "search_files":
             pattern = args.get("pattern", args.get("query", ""))
             return f"Searching files for: {pattern}"
-        elif tool == "run_shell" or tool == "execute_command":
+        elif tool in ("run_shell_command", "run_shell", "execute_command"):
             cmd = args.get("command", "")
-            return f"Running command: {self._truncate(cmd, 50)}"
+            cwd = args.get("working_directory", "")
+            base = f"Running command: {self._truncate(cmd, 50)}"
+            if cwd:
+                return f"{base} (cwd: {self._truncate(cwd, 40)})"
+            return base
         else:
             return f"{tool}"
 
