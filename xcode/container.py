@@ -67,8 +67,11 @@ def create_container(config: XCodeConfig, console: Console = None) -> DIContaine
     schema_text = get_schema()
     
     # Create repositories
+    import os
+    la_factoria_url = os.getenv('LA_FACTORIA_URL', 'http://localhost:8000')
+    
     agent_repo = LaFactoriaRepository(
-        base_url="http://localhost:8000",
+        base_url=la_factoria_url,
         console=console,
         verbose=config.verbose,
     )
