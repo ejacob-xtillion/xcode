@@ -1,0 +1,94 @@
+version: '3.8'
+
+services:
+  # Neo4j database for knowledge graphs (starts first)
+  neo4j:
+    image: neo4j:5.15
+    container_name: xcode-neo4j
+    ports:
+      - "7474:7474"  # HTTP
+      - "7687:7687"  # Bolt
+    environment:
+      - NEO4J_AUTH=neo4j/password
+      - NEO4J_PLUGINS=["apoc"]
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+    healthcheck:
+      test: ["CMD", "cypher-shell", "-u", "neo4j", "-p", "password", "RETURN 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - xcode-network
+
+  # xCode Agent API (la-factoria generated agent)
+  xcode-agent:
+    container_name: xcode-agent
+    platform: linux/amd64
+    restart: unless-stopped
+    build:
+      context: /Users/elijahgjacob/la-factoria/output/xcode_agent
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - /Users/elijahgjacob/la-factoria/output/xcode_agent:/app
+      - /app/.venv
+      - /Users/elijahgjacob:/elijahgjacob
+    env_file:
+      - /Users/elijahgjacob/la-factoria/output/xcode_agent/.env
+    environment:
+      - PYTHONUNBUFFERED=1
+      - NEO4J_URI=bolt://neo4j:7687
+      - NEO4J_USER=neo4j
+      - NEO4J_PASSWORD=password
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    networks:
+      - xcode-network
+
+  # xCode CLI service
+  xcode:
+    container_name: xcode-cli
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - .:/app
+      - /app/.venv
+      - ~/.gitconfig:/root/.gitconfig:ro
+      - /Users/elijahgjacob:/workspace:ro
+    environment:
+      - PYTHONUNBUFFERED=1
+      - LA_FACTORIA_URL=http://xcode-agent:8000
+      - NEO4J_URI=bolt://neo4j:7687
+      - NEO4J_USER=neo4j
+      - NEO4J_PASSWORD=password
+    depends_on:
+      xcode-agent:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+    networks:
+      - xcode-network
+    stdin_open: true
+    tty: true
+    command: xcode -i --path /workspace/xcode
+
+volumes:
+  neo4j_data:
+  neo4j_logs:
+
+networks:
+  xcode-network:
+    name: xcode-network
+    driver: bridge
