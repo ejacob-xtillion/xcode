@@ -102,6 +102,8 @@ def main(
     llm_endpoint: str | None,
     local: bool,
     verbose: bool,
+    no_agent_stream: bool,
+    agent_trace_recap: bool,
     interactive: bool,
 ) -> None:
     """
