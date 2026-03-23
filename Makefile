@@ -1,8 +1,9 @@
-.PHONY: help build up down restart logs clean test shell
+.PHONY: help build up down restart logs clean test shell start
 
 help:
 	@echo "xCode Docker Commands"
 	@echo ""
+	@echo "  make start     - Smart startup (recommended)"
 	@echo "  make build     - Build all Docker images"
 	@echo "  make up        - Start all services"
 	@echo "  make down      - Stop all services"
@@ -14,14 +15,17 @@ help:
 	@echo "  make xcode     - Run xCode interactively"
 	@echo ""
 
+start:
+	@./docker-start.sh
+
 build:
 	docker-compose build
 
 up:
 	docker-compose up -d neo4j xcode-agent
-	@echo "Waiting for services to be healthy..."
-	@sleep 5
-	@echo "Backend services ready! Run 'make xcode' to start interactive mode"
+	@echo "⏳ Waiting for services to be healthy (this may take 60s)..."
+	@sleep 10
+	@echo "✓ Backend services starting! Run 'make xcode' to start interactive mode"
 
 down:
 	docker-compose down

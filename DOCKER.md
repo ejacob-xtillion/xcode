@@ -12,7 +12,25 @@ This Docker setup orchestrates three services:
 
 ## Quick Start
 
-### Start All Services
+### Recommended: Use the Startup Script
+
+```bash
+# Smart startup with progress indicators (recommended)
+./docker-start.sh
+
+# Or using Makefile
+make start
+```
+
+This script will:
+1. Check Docker is running
+2. Pull Neo4j image with retry logic
+3. Build both xCode services
+4. Start services in correct order
+5. Wait for health checks
+6. Show status and next steps
+
+### Manual Start
 
 ```bash
 # Start all services (Neo4j, xCode Agent, xCode CLI)

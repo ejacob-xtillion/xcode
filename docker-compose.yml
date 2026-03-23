@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Neo4j database for knowledge graphs (starts first)
   neo4j:
