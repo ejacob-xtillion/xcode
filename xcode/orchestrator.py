@@ -5,6 +5,7 @@ Refactored to use clean architecture with service layer.
 """
 
 import asyncio
+import os
 from dataclasses import dataclass
 
 from rich.console import Console
@@ -38,8 +39,9 @@ class XCodeOrchestrator:
         )
         self.graph_service = GraphService(graph_repo, self.console)
 
+        agent_url = os.getenv("LA_FACTORIA_URL", "http://localhost:8000")
         agent_repo = LaFactoriaRepository(
-            base_url="http://localhost:8000",
+            base_url=agent_url,
             console=self.console,
             agent_name="xcode_coding_agent",
             verbose=self.config.verbose,
@@ -74,7 +76,12 @@ class XCodeOrchestrator:
                         f"(does not require Neo4j)[/dim]"
                     )
 
-            task = self.task_service.create_task(self.config.task)
+            task = self.task_service.create_task(
+                description=self.config.task,
+                repo_path=self.config.repo_path,
+                project_name=self.config.project_name,
+                language=self.config.language,
+            )
             schema = get_schema()
 
             result = asyncio.run(

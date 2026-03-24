@@ -69,6 +69,9 @@ services:
       - POSTGRES_USER=xagents_user
       - POSTGRES_PASSWORD=xagents_password
       - POSTGRES_DB=xagents_db
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - LLM_BASE_URL=${LLM_BASE_URL:-https://api.openai.com/v1}
+      - LLM_MODEL=${LLM_MODEL:-gpt-4}
     depends_on:
       neo4j:
         condition: service_healthy

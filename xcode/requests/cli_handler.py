@@ -5,15 +5,15 @@ from pathlib import Path
 
 from rich.console import Console
 
-from xcode.commands import ExecuteTaskCommand
-from xcode.models import Task, TaskValidationError, AgentResult
+from xcode.models import TaskValidationError, AgentResult, XCodeConfig
+from xcode.orchestrator import XCodeOrchestrator
 
 
 class CLIRequestHandler:
     """
     Handler for CLI requests.
     
-    Parses CLI arguments, creates commands, and executes them.
+    Uses XCodeOrchestrator to execute tasks.
     """
     
     def __init__(self, container):
@@ -21,7 +21,7 @@ class CLIRequestHandler:
         Initialize the CLI request handler.
         
         Args:
-            container: Dependency injection container
+            container: Dependency injection container (unused, kept for compatibility)
         """
         self.container = container
         self.console = Console()
@@ -50,28 +50,22 @@ class CLIRequestHandler:
             AgentResult with execution status
         """
         try:
-            # Create task model
             if not project_name:
                 project_name = repo_path.name
             
-            task = Task(
-                description=task_description,
+            # Create config for orchestrator
+            config = XCodeConfig(
+                task=task_description,
                 repo_path=repo_path,
-                project_name=project_name,
                 language=language,
-            )
-            
-            # Create and execute command
-            command = ExecuteTaskCommand(
-                task=task,
-                agent_service=self.container.agent_service,
-                graph_service=self.container.graph_service,
-                console=self.console,
+                project_name=project_name,
                 build_graph=build_graph,
                 verbose=verbose,
             )
             
-            result = command.execute()
+            # Use orchestrator to execute task
+            orchestrator = XCodeOrchestrator(config=config, console=self.console)
+            result = orchestrator.run()
             
             # Display result
             self._display_result(result)
