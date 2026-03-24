@@ -86,6 +86,22 @@ console = Console()
     help="After each agent task, print a chronological trace panel (tools, stream summary)",
 )
 @click.option(
+    "--no-verify",
+    is_flag=True,
+    help="Skip automatic verification (tests/linters) after changes",
+)
+@click.option(
+    "--no-test-generation",
+    is_flag=True,
+    help="Skip automatic test generation for untested code",
+)
+@click.option(
+    "--max-fix-attempts",
+    type=int,
+    default=2,
+    help="Maximum retry attempts when tests fail (default: 2)",
+)
+@click.option(
     "--interactive",
     "-i",
     is_flag=True,
@@ -104,6 +120,9 @@ def main(
     verbose: bool,
     no_agent_stream: bool,
     agent_trace_recap: bool,
+    no_verify: bool,
+    no_test_generation: bool,
+    max_fix_attempts: int,
     interactive: bool,
 ) -> None:
     """
@@ -133,6 +152,9 @@ def main(
             verbose=verbose,
             agent_stream_tokens=not no_agent_stream,
             agent_trace_recap=agent_trace_recap,
+            verify_changes=not no_verify,
+            generate_missing_tests=not no_test_generation,
+            max_fix_attempts=max_fix_attempts,
         )
 
         if use_interactive:
