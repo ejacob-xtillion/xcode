@@ -117,6 +117,31 @@ xcode -i                        # Interactive mode
 xcode --verbose "task"          # Verbose output
 xcode --no-build-graph "task"   # Skip graph rebuild
 xcode --local "task"            # Ollama for xgraph (normalizes to http://localhost:11434/v1)
+xcode --no-verify "task"        # Skip automatic verification
+xcode --no-test-generation "task"  # Skip automatic test generation
+xcode --max-fix-attempts 3 "task"  # Allow 3 fix attempts on test failures
+```
+
+### Verification Loop
+
+xCode automatically verifies changes after task completion:
+
+1. **Test Discovery**: Queries Neo4j to find tests related to modified code
+2. **Coverage Analysis**: Identifies untested callables using graph relationships
+3. **Test Generation**: Generates pytest tests for untested code (if enabled)
+4. **Verification**: Runs tests and linters
+5. **Auto-Fix**: Retries with agent fixes if verification fails (max 2 attempts by default)
+
+The loop uses Neo4j queries like:
+```cypher
+// Find tests for a callable
+MATCH (c:Callable {name: 'my_function'})<-[:TESTS]-(t:Test)
+RETURN t.name, t.path
+
+// Find untested callables
+MATCH (f:File {path: 'myfile.py'})<-[:DECLARED_IN]-(c:Callable)
+WHERE NOT (c:Test) AND NOT EXISTS((c)<-[:TESTS]-())
+RETURN c.name, c.signature
 ```
 
 ### Local LLM (Ollama)

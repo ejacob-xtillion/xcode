@@ -11,7 +11,9 @@ xCode is a monorepo containing:
 - 🔍 **Knowledge Graph Integration**: Understands your codebase structure via Neo4j
 - 🤖 **AI Agent**: LangGraph-based agent with MCP tools (Neo4j, filesystem)
 - 💻 **Local LLM Support**: Works with Ollama, LM Studio, or cloud APIs
-- 🔄 **Verification Loop**: Automatically runs tests and linters
+- ✅ **Automatic Verification Loop**: Runs tests/linters after changes, generates missing tests
+- 🧪 **Smart Test Discovery**: Uses Neo4j to find related tests and untested code
+- 🔄 **Auto-Fix Retry**: Agent automatically fixes test failures (configurable attempts)
 - 📊 **Rich CLI**: Beautiful terminal UI with progress indicators
 - 🏗️ **Clean Architecture**: Modular design with clear separation of concerns
 
@@ -59,9 +61,24 @@ Options:
   --llm-endpoint URL       Base URL for local LLM API
   --local                  Use local LLM (Ollama at localhost:11434)
   --verbose, -v            Enable verbose output
+  --no-verify              Skip automatic verification after changes
+  --no-test-generation     Skip automatic test generation for untested code
+  --max-fix-attempts N     Maximum retry attempts on test failures (default: 2)
   -i, --interactive        Interactive mode
   --help                   Show this message and exit
 ```
+
+### Verification Loop
+
+By default, xCode automatically verifies changes after the agent completes a task:
+
+1. **Test Discovery**: Uses Neo4j to find tests related to modified code
+2. **Coverage Check**: Identifies untested callables in modified files
+3. **Test Generation**: Automatically generates tests for untested code
+4. **Verification**: Runs pytest and linters
+5. **Auto-Fix**: If tests fail, agent gets 2 attempts to fix issues
+
+Disable with `--no-verify` or `--no-test-generation` flags.
 
 ## Repository Structure
 
