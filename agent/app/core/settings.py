@@ -140,17 +140,24 @@ class AppSettings(BaseSettings):
     )
     shell_auto_install_requirements: bool = Field(
         default=True,
-        description="If requirements.txt exists in cwd, run uv/pip install -r before pytest-like commands",
+        description=(
+            "Auto-install deps before pytest-like commands: "
+            "if requirements.txt exists, run uv pip / pip install -r; "
+            "else if pyproject.toml exists and uv is on PATH, run uv sync and execute via uv run"
+        ),
     )
     shell_skip_redundant_requirements_install: bool = Field(
         default=True,
-        description="Skip repeat installs when requirements.txt + cwd + Python path unchanged (in-process cache)",
+        description=(
+            "Skip repeat installs/syncs when requirements.txt or pyproject.toml + cwd unchanged "
+            "(in-process cache)"
+        ),
     )
     shell_pip_install_timeout_seconds: int = Field(
         default=300,
         ge=30,
         le=1800,
-        description="Timeout for automatic requirements.txt install (uv pip or python -m pip)",
+        description="Timeout for automatic requirements.txt install or uv sync",
     )
 
     # Streaming Configuration

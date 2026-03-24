@@ -133,11 +133,12 @@ def test_run_shell_command_impl_nonzero_exit(tmp_path):
     assert "exit_code=1" in out
 
 
-def test_auto_install_skipped_without_requirements_txt(tmp_path):
+def test_auto_install_skipped_without_requirements_or_pyproject(tmp_path):
+    """No auto-install when neither requirements.txt nor pyproject.toml exists."""
     root = tmp_path / "r"
     root.mkdir()
     with patch.object(_sc.subprocess, "run") as mock_run:
-        mock_run.side_effect = AssertionError("pip should not run")
+        mock_run.side_effect = AssertionError("pip/uv should not run")
         with patch.object(_sc.subprocess, "Popen") as mock_popen:
             proc = MagicMock()
             proc.returncode = 0
@@ -339,3 +340,256 @@ def test_skip_redundant_requirements_install_false_runs_pip_twice(tmp_path):
                         skip_redundant_requirements_install=False,
                     )
     assert len(runs) == 2
+
+
+# --------------------------------------------------------------------------
+# pyproject.toml + uv tests
+# --------------------------------------------------------------------------
+
+
+def test_pyproject_uv_sync_and_uv_run_before_pytest(tmp_path):
+    """When pyproject.toml exists (no requirements.txt) and uv on PATH, run uv sync then uv run."""
+    root = tmp_path / "r"
+    root.mkdir()
+    (root / "pyproject.toml").write_text('[project]\nname = "foo"\n')
+
+    sync_calls = []
+
+    def fake_run(argv, **kwargs):
+        sync_calls.append(list(argv))
+        return subprocess.CompletedProcess(argv, 0, stdout="synced\n", stderr="")
+
+    with patch.object(_sc.shutil, "which", return_value="/bin/uv"):
+        with patch.object(_sc.subprocess, "run", side_effect=fake_run):
+            with patch.object(_sc.subprocess, "Popen") as mock_popen:
+                proc = MagicMock()
+                proc.returncode = 0
+                proc.communicate.return_value = ("tests passed\n", "")
+                mock_popen.return_value = proc
+                out = run_shell_command_impl(
+                    "pytest -q",
+                    str(root),
+                    allowed_roots=[str(root)],
+                    timeout=10,
+                    max_output_bytes=4096,
+                    auto_install_requirements=True,
+                )
+
+    # uv sync was called
+    assert len(sync_calls) == 1
+    assert sync_calls[0] == ["/bin/uv", "sync"]
+
+    # Popen was called with uv run -- pytest -q
+    mock_popen.assert_called_once()
+    popen_argv = mock_popen.call_args[0][0]
+    assert popen_argv == ["/bin/uv", "run", "--", "pytest", "-q"]
+
+    # Output includes sync preamble and test result
+    assert "uv sync" in out
+    assert "synced" in out
+    assert "tests passed" in out
+    assert "(via uv run)" in out
+
+
+def test_pyproject_uv_sync_failure_raises(tmp_path):
+    """uv sync failure raises ShellCommandError with preamble."""
+    root = tmp_path / "r"
+    root.mkdir()
+    (root / "pyproject.toml").write_text('[project]\nname = "foo"\n')
+
+    def fake_run(argv, **kwargs):
+        return subprocess.CompletedProcess(argv, 1, stdout="", stderr="sync error\n")
+
+    with patch.object(_sc.shutil, "which", return_value="/bin/uv"):
+        with patch.object(_sc.subprocess, "run", side_effect=fake_run):
+            with patch.object(_sc.subprocess, "Popen") as mock_popen:
+                with pytest.raises(ShellCommandError, match="uv sync failed"):
+                    run_shell_command_impl(
+                        "pytest -q",
+                        str(root),
+                        allowed_roots=[str(root)],
+                        timeout=10,
+                        max_output_bytes=4096,
+                        auto_install_requirements=True,
+                    )
+    mock_popen.assert_not_called()
+
+
+def test_pyproject_second_pytest_skips_sync_when_cached(tmp_path):
+    """Second pytest in same process skips uv sync when pyproject unchanged."""
+    root = tmp_path / "r"
+    root.mkdir()
+    (root / "pyproject.toml").write_text('[project]\nname = "foo"\n')
+
+    sync_calls = []
+
+    def fake_run(argv, **kwargs):
+        sync_calls.append(list(argv))
+        return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
+
+    with patch.object(_sc.shutil, "which", return_value="/bin/uv"):
+        with patch.object(_sc.subprocess, "run", side_effect=fake_run):
+            with patch.object(_sc.subprocess, "Popen") as mock_popen:
+                proc = MagicMock()
+                proc.returncode = 0
+                proc.communicate.return_value = ("ok\n", "")
+                mock_popen.return_value = proc
+                run_shell_command_impl(
+                    "pytest -q",
+                    str(root),
+                    allowed_roots=[str(root)],
+                    timeout=10,
+                    max_output_bytes=4096,
+                    auto_install_requirements=True,
+                )
+                out2 = run_shell_command_impl(
+                    "pytest -q",
+                    str(root),
+                    allowed_roots=[str(root)],
+                    timeout=10,
+                    max_output_bytes=4096,
+                    auto_install_requirements=True,
+                )
+
+    # uv sync only called once
+    assert len(sync_calls) == 1
+    # Popen called twice (both pytest runs via uv run)
+    assert mock_popen.call_count == 2
+    # Second run shows skipped message
+    assert "skipped uv sync" in out2
+
+
+def test_pyproject_with_uv_lock_fingerprint_includes_lock(tmp_path):
+    """Fingerprint includes uv.lock when present; change triggers re-sync."""
+    root = tmp_path / "r"
+    root.mkdir()
+    (root / "pyproject.toml").write_text('[project]\nname = "foo"\n')
+    (root / "uv.lock").write_text("# lock v1\n")
+
+    sync_calls = []
+
+    def fake_run(argv, **kwargs):
+        sync_calls.append(list(argv))
+        return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
+
+    with patch.object(_sc.shutil, "which", return_value="/bin/uv"):
+        with patch.object(_sc.subprocess, "run", side_effect=fake_run):
+            with patch.object(_sc.subprocess, "Popen") as mock_popen:
+                proc = MagicMock()
+                proc.returncode = 0
+                proc.communicate.return_value = ("ok\n", "")
+                mock_popen.return_value = proc
+
+                # First run
+                run_shell_command_impl(
+                    "pytest -q",
+                    str(root),
+                    allowed_roots=[str(root)],
+                    timeout=10,
+                    max_output_bytes=4096,
+                    auto_install_requirements=True,
+                )
+                # Modify uv.lock
+                (root / "uv.lock").write_text("# lock v2\n")
+                # Second run should re-sync
+                run_shell_command_impl(
+                    "pytest -q",
+                    str(root),
+                    allowed_roots=[str(root)],
+                    timeout=10,
+                    max_output_bytes=4096,
+                    auto_install_requirements=True,
+                )
+
+    # uv sync called twice (fingerprint changed)
+    assert len(sync_calls) == 2
+
+
+def test_pyproject_skipped_when_uv_not_on_path(tmp_path):
+    """pyproject.toml exists but uv not on PATH: no sync, run command directly."""
+    root = tmp_path / "r"
+    root.mkdir()
+    (root / "pyproject.toml").write_text('[project]\nname = "foo"\n')
+
+    with patch.object(_sc.subprocess, "run") as mock_run:
+        mock_run.side_effect = AssertionError("uv sync should not run")
+        with patch.object(_sc.shutil, "which", return_value=None):
+            with patch.object(_sc.subprocess, "Popen") as mock_popen:
+                proc = MagicMock()
+                proc.returncode = 0
+                proc.communicate.return_value = ("ok\n", "")
+                mock_popen.return_value = proc
+                out = run_shell_command_impl(
+                    "pytest -q",
+                    str(root),
+                    allowed_roots=[str(root)],
+                    timeout=10,
+                    max_output_bytes=4096,
+                    auto_install_requirements=True,
+                )
+
+    # Command run directly (no uv run wrapper)
+    mock_popen.assert_called_once()
+    popen_argv = mock_popen.call_args[0][0]
+    assert popen_argv == ["pytest", "-q"]
+    # No uv sync preamble or "(via uv run)" in output
+    assert "uv sync" not in out
+    assert "(via uv run)" not in out
+
+
+def test_requirements_txt_takes_precedence_over_pyproject(tmp_path):
+    """When both requirements.txt and pyproject.toml exist, use requirements.txt path."""
+    root = tmp_path / "r"
+    root.mkdir()
+    (root / "requirements.txt").write_text("pandas\n")
+    (root / "pyproject.toml").write_text('[project]\nname = "foo"\n')
+
+    run_calls = []
+
+    def fake_run(argv, **kwargs):
+        run_calls.append(list(argv))
+        return subprocess.CompletedProcess(argv, 0, stdout="installed\n", stderr="")
+
+    with patch.object(_sc.shutil, "which", return_value="/bin/uv"):
+        with patch.object(_sc.subprocess, "run", side_effect=fake_run):
+            with patch.object(_sc.subprocess, "Popen") as mock_popen:
+                proc = MagicMock()
+                proc.returncode = 0
+                proc.communicate.return_value = ("ok\n", "")
+                mock_popen.return_value = proc
+                out = run_shell_command_impl(
+                    "pytest -q",
+                    str(root),
+                    allowed_roots=[str(root)],
+                    timeout=10,
+                    max_output_bytes=4096,
+                    auto_install_requirements=True,
+                )
+
+    # Should use uv pip install (requirements.txt path), not uv sync
+    assert len(run_calls) == 1
+    assert "pip" in run_calls[0]
+    assert "uv pip install" in out
+
+    # Popen runs pytest directly (not via uv run)
+    popen_argv = mock_popen.call_args[0][0]
+    assert popen_argv == ["pytest", "-q"]
+
+
+def test_pyproject_exceeds_max_size_raises(tmp_path):
+    """pyproject.toml larger than limit raises ShellCommandError."""
+    root = tmp_path / "r"
+    root.mkdir()
+    limit = _sc._MAX_PYPROJECT_BYTES
+    (root / "pyproject.toml").write_bytes(b"#\n" + b"x" * limit)
+
+    with patch.object(_sc.shutil, "which", return_value="/bin/uv"):
+        with pytest.raises(ShellCommandError, match="larger than"):
+            run_shell_command_impl(
+                "pytest -q",
+                str(root),
+                allowed_roots=[str(root)],
+                timeout=10,
+                max_output_bytes=4096,
+                auto_install_requirements=True,
+            )

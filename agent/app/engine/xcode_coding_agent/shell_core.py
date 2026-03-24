@@ -4,7 +4,8 @@ Stdlib-only shell sandbox helpers (no LangChain). Imported by shell_tool and tes
 Security / behavior notes (SWE contract):
 - Commands are parsed with ``shlex`` and executed with ``shell=False`` (no shell injection).
 - ``cwd`` is resolved and must stay under configured allowed roots.
-- Auto-install only reads ``requirements.txt`` in that cwd (bounded size); it does not execute it.
+- Auto-install reads ``requirements.txt`` or ``pyproject.toml`` (bounded size); it does not execute them directly.
+- For pyproject.toml repos with uv on PATH, uses ``uv sync`` + ``uv run`` for proper environment handling.
 - Subprocess output is capped to limit memory and log size.
 """
 
@@ -22,9 +23,14 @@ from typing import Final
 
 # Guardrail: avoid loading huge files into memory for fingerprinting.
 _MAX_REQUIREMENTS_TXT_BYTES: Final[int] = 512 * 1024
+_MAX_PYPROJECT_BYTES: Final[int] = 512 * 1024
+_MAX_UV_LOCK_BYTES: Final[int] = 2 * 1024 * 1024  # uv.lock can be larger
 
 # (resolved cwd, sha256 of requirements.txt, python executable path)
 RequirementsInstallFingerprint = tuple[str, str, str]
+
+# (resolved cwd, sha256 of pyproject.toml + uv.lock if present)
+PyprojectSyncFingerprint = tuple[str, str]
 
 
 class ShellCommandError(Exception):
@@ -86,11 +92,15 @@ def truncate_output(text: str, max_bytes: int) -> str:
 _install_lock = threading.Lock()
 _installed_requirements_fingerprints: set[RequirementsInstallFingerprint] = set()
 
+# Successful uv sync keyed by (cwd, combined hash of pyproject.toml + uv.lock).
+_synced_pyproject_fingerprints: set[PyprojectSyncFingerprint] = set()
+
 
 def clear_requirements_install_cache() -> None:
     """Reset in-process install dedupe state (intended for tests)."""
     with _install_lock:
         _installed_requirements_fingerprints.clear()
+        _synced_pyproject_fingerprints.clear()
 
 
 def _requirements_file_sha256(req_path: str) -> str:
@@ -119,6 +129,46 @@ def _requirements_fingerprint(
     cwd: str, req_path: str, python_executable: str
 ) -> RequirementsInstallFingerprint:
     return (cwd, _requirements_file_sha256(req_path), python_executable)
+
+
+def _file_sha256_bounded(path: str, max_bytes: int, label: str) -> str:
+    """Stream-hash a file with a hard size cap. Returns hex digest."""
+    digest = hashlib.sha256()
+    total = 0
+    try:
+        with open(path, "rb") as f:
+            while True:
+                chunk = f.read(65536)
+                if not chunk:
+                    break
+                total += len(chunk)
+                if total > max_bytes:
+                    raise ShellCommandError(
+                        f"{label} is larger than {max_bytes} bytes; "
+                        "auto-sync disabled for this project (sync deps manually)."
+                    )
+                digest.update(chunk)
+    except OSError as e:
+        raise ShellCommandError(f"Could not read {label}: {e}") from e
+    return digest.hexdigest()
+
+
+def _pyproject_fingerprint(cwd: str) -> PyprojectSyncFingerprint:
+    """
+    Hash pyproject.toml and uv.lock (if present) for cache key.
+    """
+    pyproject_path = os.path.join(cwd, "pyproject.toml")
+    lock_path = os.path.join(cwd, "uv.lock")
+
+    combined = hashlib.sha256()
+    combined.update(
+        _file_sha256_bounded(pyproject_path, _MAX_PYPROJECT_BYTES, "pyproject.toml").encode()
+    )
+    if os.path.isfile(lock_path):
+        combined.update(
+            _file_sha256_bounded(lock_path, _MAX_UV_LOCK_BYTES, "uv.lock").encode()
+        )
+    return (cwd, combined.hexdigest())
 
 
 def _command_suggests_test_run(command: str) -> bool:
@@ -195,6 +245,27 @@ def _run_requirements_txt_install(
     return code, out, err, "python -m pip install -q -r requirements.txt"
 
 
+def _run_uv_sync(cwd: str, *, uv_bin: str, sync_timeout: int) -> tuple[int, str, str]:
+    """
+    Run ``uv sync`` in a pyproject.toml-based project to materialize the venv.
+
+    Does not use --frozen so slightly stale locks can still resolve in agent context.
+    Returns (exit_code, stdout, stderr).
+    """
+    proc = subprocess.run(
+        [uv_bin, "sync"],
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        timeout=sync_timeout,
+        start_new_session=True,
+    )
+    out = proc.stdout or ""
+    err = proc.stderr or ""
+    code = proc.returncode if proc.returncode is not None else -1
+    return code, out, err
+
+
 def run_shell_command_impl(
     command: str,
     working_directory: str,
@@ -216,19 +287,21 @@ def run_shell_command_impl(
         allowed_roots: Each path resolved; cwd must be equal to or under one root.
         timeout: Seconds for the main command (install uses ``pip_install_timeout``).
         max_output_bytes: Truncate combined stdout/stderr beyond this size.
-        auto_install_requirements: When True and command looks like a test run, if
-            ``requirements.txt`` exists under cwd, install deps into ``python_executable``'s env first.
-        skip_redundant_requirements_install: When True, skip install if the same cwd +
-            requirements content + Python already succeeded in this process.
-        pip_install_timeout: Timeout for the automatic requirements install step.
-        python_executable: Interpreter for installs and implied default for ``python`` in PATH;
+        auto_install_requirements: When True and command looks like a test run:
+            - If ``requirements.txt`` exists, install deps via uv pip / pip.
+            - Else if ``pyproject.toml`` exists and uv is on PATH, run ``uv sync``
+              and execute the command via ``uv run`` for proper environment handling.
+        skip_redundant_requirements_install: When True, skip install/sync if the same
+            cwd + content fingerprint already succeeded in this process.
+        pip_install_timeout: Timeout for automatic requirements/sync step.
+        python_executable: Interpreter for pip installs (requirements.txt path);
             defaults to ``sys.executable``.
 
     Returns:
         Human-readable block with exit code, cwd, command echo, and truncated output.
 
     Raises:
-        ShellCommandError: Invalid cwd, parse error, timeout, or install failure.
+        ShellCommandError: Invalid cwd, parse error, timeout, or install/sync failure.
     """
     if not command or not str(command).strip():
         raise ShellCommandError("command is required and must be non-empty.")
@@ -245,10 +318,15 @@ def run_shell_command_impl(
 
     py_exe = python_executable or sys.executable
     preamble = ""
+    use_uv_run = False  # If True, wrap argv with uv run --
 
     if auto_install_requirements and _command_suggests_test_run(command):
         req_path = os.path.join(cwd, "requirements.txt")
+        pyproject_path = os.path.join(cwd, "pyproject.toml")
+        uv_bin = shutil.which("uv")
+
         if os.path.isfile(req_path):
+            # requirements.txt path (existing behavior)
             fp = _requirements_fingerprint(cwd, req_path, py_exe)
 
             with _install_lock:
@@ -297,6 +375,56 @@ def run_shell_command_impl(
                 with _install_lock:
                     _installed_requirements_fingerprints.add(fp)
 
+        elif os.path.isfile(pyproject_path) and uv_bin:
+            # pyproject.toml + uv path: sync env and run via uv run
+            fp = _pyproject_fingerprint(cwd)
+
+            with _install_lock:
+                cached = (
+                    skip_redundant_requirements_install
+                    and fp in _synced_pyproject_fingerprints
+                )
+            if cached:
+                preamble = (
+                    "auto: skipped uv sync (unchanged since last success in this process)\n"
+                    "---\n"
+                )
+            else:
+                try:
+                    sync_code, sync_out, sync_err = _run_uv_sync(
+                        cwd, uv_bin=uv_bin, sync_timeout=pip_install_timeout
+                    )
+                except subprocess.TimeoutExpired:
+                    raise ShellCommandError(
+                        f"uv sync timed out after {pip_install_timeout}s"
+                    ) from None
+                except OSError as e:
+                    raise ShellCommandError(f"uv sync failed to start: {e}") from e
+
+                sync_blob = ""
+                if sync_out:
+                    sync_blob += f"stdout:\n{sync_out}"
+                if sync_err:
+                    sync_blob += ("\n" if sync_blob else "") + f"stderr:\n{sync_err}"
+                if not sync_blob:
+                    sync_blob = "(no sync output)"
+
+                preamble = (
+                    f"auto: uv sync\n"
+                    f"{truncate_output(sync_blob, max_output_bytes)}\n"
+                    f"---\n"
+                )
+                if sync_code != 0:
+                    raise ShellCommandError(
+                        f"uv sync failed (exit {sync_code}).\n{preamble}"
+                    )
+                with _install_lock:
+                    _synced_pyproject_fingerprints.add(fp)
+
+            # Run the command via uv run so it uses the project environment
+            use_uv_run = True
+            argv = [uv_bin, "run", "--"] + argv
+
     try:
         proc = subprocess.Popen(
             argv,
@@ -333,10 +461,16 @@ def run_shell_command_impl(
         combined = "(no stdout/stderr)"
 
     combined = truncate_output(combined, max_output_bytes)
+
+    # Show original command in output (not the uv run wrapper)
+    display_cmd = command
+    if use_uv_run:
+        display_cmd = f"(via uv run) {command}"
+
     # Omit exit_code when 0 to reduce noise; always show on failure.
     if exit_code != 0:
-        head = f"exit_code={exit_code}\n{cwd}\n$ {command}\n\n"
+        head = f"exit_code={exit_code}\n{cwd}\n$ {display_cmd}\n\n"
     else:
-        head = f"{cwd}\n$ {command}\n\n"
+        head = f"{cwd}\n$ {display_cmd}\n\n"
     body = head + combined
     return preamble + body if preamble else body
