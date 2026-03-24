@@ -55,6 +55,8 @@ services:
       - /app/.venv
       - /Users/elijahgjacob:/Users/elijahgjacob
     env_file:
+      - path: ./.env
+        required: true
       - path: ./agent/.env
         required: false
     environment:
@@ -97,6 +99,9 @@ services:
       - /app/.venv
       - ~/.gitconfig:/root/.gitconfig:ro
       - /Users/elijahgjacob:/workspace:ro
+    env_file:
+      - path: ./.env
+        required: true
     environment:
       - PYTHONUNBUFFERED=1
       - LA_FACTORIA_URL=http://xcode-agent:8000
