@@ -14,10 +14,13 @@ class AgentResult:
     iterations: int
     error: Optional[str] = None
     logs: List[str] = None
+    modified_files: List[str] = None
 
     def __post_init__(self) -> None:
         if self.logs is None:
             self.logs = []
+        if self.modified_files is None:
+            self.modified_files = []
 
 
 @dataclass

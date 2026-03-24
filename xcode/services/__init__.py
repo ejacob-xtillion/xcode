@@ -8,6 +8,8 @@ from xcode.services.classification_service import ClassificationService
 from xcode.services.graph_service import GraphService
 from xcode.services.task_service import TaskService
 from xcode.services.verification_service import VerificationService
+from xcode.services.test_discovery_service import TestDiscoveryService
+from xcode.services.test_generation_service import TestGenerationService
 
 __all__ = [
     "AgentService",
@@ -15,4 +17,6 @@ __all__ = [
     "GraphService",
     "TaskService",
     "VerificationService",
+    "TestDiscoveryService",
+    "TestGenerationService",
 ]

@@ -26,6 +26,11 @@ class XCodeConfig:
     agent_stream_tokens: bool = True
     agent_trace_recap: bool = False
 
+    # Verification configuration
+    verify_changes: bool = True
+    generate_missing_tests: bool = True
+    max_fix_attempts: int = 2
+
     # Neo4j configuration (from environment)
     neo4j_uri: str = field(default_factory=lambda: os.getenv("NEO4J_URI", "bolt://localhost:7687"))
     neo4j_user: str = field(default_factory=lambda: os.getenv("NEO4J_USER", "neo4j"))
