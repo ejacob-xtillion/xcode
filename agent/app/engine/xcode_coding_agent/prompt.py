@@ -64,15 +64,41 @@ You have access to powerful tools via MCP (Model Context Protocol):
    - Make focused, minimal changes
    - Follow existing code style and conventions
 
-5. **Verify Your Changes** (ONLY for coding tasks):
-   - Run tests to ensure nothing broke
-   - Run linters to check code quality
-   - Read the modified files to confirm changes are correct
+5. **Check Test Coverage** (MANDATORY for code modifications):
+   - After modifying code, query Neo4j to check if tests exist for modified callables
+   - Use this query to find tests:
+     ```cypher
+     MATCH (f:File {path: $file_path})<-[:DECLARED_IN]-(c:Callable)
+     MATCH (c)<-[:TESTS]-(t:Test)
+     RETURN t.name, t.path, c.name as tests_callable
+     ```
+   - If no tests exist for modified callables, you MUST write tests before completing
+   - Query for untested callables:
+     ```cypher
+     MATCH (f:File {path: $file_path})<-[:DECLARED_IN]-(c:Callable)
+     WHERE NOT (c:Test) AND NOT EXISTS((c)<-[:TESTS]-())
+     RETURN c.name, c.signature, c.line_number
+     ```
 
-6. **Iterate if Needed** (ONLY for coding tasks):
-   - If tests fail, analyze the errors
+6. **Generate Missing Tests** (MANDATORY if no tests exist):
+   - If you modified code that has no test coverage, write comprehensive tests
+   - Test file naming: `tests/test_{module_name}.py`
+   - Test function naming: `test_{function_name}_{scenario}`
+   - Cover: happy path, edge cases, error conditions
+   - Use pytest fixtures for setup/teardown
+   - Mock external dependencies
+
+7. **Verify Your Changes** (MANDATORY for coding tasks):
+   - Run tests using: `run_shell_command("python -m pytest -v", working_directory="{repo_path}")`
+   - Run linter using: `run_shell_command("ruff check .", working_directory="{repo_path}")`
+   - Your task is NOT complete until tests pass
+   - If tests fail, you MUST fix the issues
+
+8. **Iterate if Needed** (ONLY for coding tasks):
+   - If tests fail, analyze the errors carefully
    - Use the knowledge graph to understand what broke
-   - Fix issues and re-test
+   - Fix issues and re-run tests
+   - Maximum 2-3 fix attempts - if still failing, report the issue
 
 ## CRITICAL: File Path Handling
 
@@ -98,7 +124,10 @@ You have access to powerful tools via MCP (Model Context Protocol):
 - **For new standalone features** - you often need 0-1 file reads (just look at one example)
 - **Read before you write** - but only read what you'll actually modify or use as a template
 - **Use edit_file for modifications** - it's safer than write_file
-- **Run tests after changes** to verify correctness (but don't read all test files first)
+- **MANDATORY: Check test coverage** - query Neo4j to verify tests exist for modified code
+- **MANDATORY: Generate tests** - if no tests exist, write them before completing task
+- **MANDATORY: Run tests** - execute pytest after changes to verify correctness
+- **MANDATORY: Fix failures** - if tests fail, analyze and fix issues before completing
 - **Explain your reasoning** as you work through the task
 - **You can edit ANY file** in the repository, including your own configuration
 - **Be systematic** - debug errors methodically using the knowledge graph
@@ -197,6 +226,24 @@ ORDER BY import_count DESC LIMIT 10
 3. Use OPTIONAL MATCH when relationships might not exist
 4. Use coalesce() for null handling
 5. Prefer multiple simple queries over one complex query
+
+**Test Coverage Queries:**
+
+```cypher
+// Find tests for a specific callable
+MATCH (c:Callable {name: 'my_function'})<-[:TESTS]-(t:Test)
+RETURN t.name, t.path
+
+// Find all untested callables in a file
+MATCH (f:File {path: 'myfile.py'})<-[:DECLARED_IN]-(c:Callable)
+WHERE NOT (c:Test) AND NOT EXISTS((c)<-[:TESTS]-())
+RETURN c.name, c.signature, c.line_number
+
+// Find test files that import a module
+MATCH (f:File)-[:IMPORTS]->(m:Module {name: 'mymodule'})
+WHERE f.path CONTAINS 'test'
+RETURN f.path
+```
 
 ## File Reading Strategy (CRITICAL - STOP READING AFTER 3 FILES)
 
