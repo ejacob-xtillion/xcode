@@ -9,6 +9,7 @@ from xcode.models.classification import TaskType, TaskClassification
 from xcode.models.file_info import FileInfo, FileTreeCache
 from xcode.models.config import XCodeConfig
 from xcode.models.task import Task, TaskValidationError
+from xcode.models.test_info import TestInfo, CallableInfo
 
 __all__ = [
     "AgentResult",
@@ -20,4 +21,6 @@ __all__ = [
     "XCodeConfig",
     "Task",
     "TaskValidationError",
+    "TestInfo",
+    "CallableInfo",
 ]
