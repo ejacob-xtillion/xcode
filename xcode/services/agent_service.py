@@ -84,4 +84,51 @@ class AgentService:
             conversation_context=conversation_context,
         )
 
+        # Extract modified files from agent logs
+        result.modified_files = self._extract_modified_files_from_logs(result.logs)
+
         return result
+
+    def _extract_modified_files_from_logs(self, logs: list[str]) -> list[str]:
+        """
+        Parse agent logs to identify which files were modified.
+
+        Looks for tool_call log entries with write_file or edit_file tools
+        and extracts the file paths.
+
+        Args:
+            logs: List of log entries from agent execution
+
+        Returns:
+            List of relative file paths that were modified
+        """
+        import re
+
+        modified = set()
+
+        for log in logs:
+            # Look for tool_call entries
+            if "[tool_call]" not in log:
+                continue
+
+            # Check for write_file or edit_file
+            if "write_file" in log or "edit_file" in log:
+                # Try to extract file path from log
+                # Format: "N. [tool_call] write_file — Writing file: /path/to/file"
+                # or JSON args in verbose mode
+                
+                # Pattern 1: "Writing file: /path" or "Editing file: /path"
+                match = re.search(r"(?:Writing|Editing) file: (.+?)(?:\s|$)", log)
+                if match:
+                    file_path = match.group(1).strip()
+                    modified.add(file_path)
+                    continue
+
+                # Pattern 2: JSON args with "path" or "file_path" key
+                # This is a simplified extraction - actual JSON parsing would be more robust
+                path_match = re.search(r'"(?:path|file_path)":\s*"([^"]+)"', log)
+                if path_match:
+                    file_path = path_match.group(1).strip()
+                    modified.add(file_path)
+
+        return list(modified)
