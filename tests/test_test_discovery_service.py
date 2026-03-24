@@ -38,13 +38,19 @@ class TestFindTestsForFiles:
 
     def test_finds_tests_for_callables(self, test_discovery_service, mock_graph_repo):
         """Test finding tests that cover callables in modified files."""
-        mock_graph_repo.query.return_value = [
-            {
-                "name": "test_calculate_total",
-                "path": "tests/test_calculator.py",
-                "line_number": 10,
-                "tests_callable": "calculate_total",
-            }
+        # Mock returns results for both queries (callable tests and import tests)
+        mock_graph_repo.query.side_effect = [
+            # First query: tests for callables
+            [
+                {
+                    "name": "test_calculate_total",
+                    "path": "tests/test_calculator.py",
+                    "line_number": 10,
+                    "tests_callable": "calculate_total",
+                }
+            ],
+            # Second query: test files that import the module
+            [],
         ]
 
         result = test_discovery_service.find_tests_for_files(
@@ -156,44 +162,3 @@ class TestGetTestSummary:
                 assert result["untested_callables"] == 1
 
 
-class TestShouldGenerateTests:
-    """Tests for should_generate_tests method."""
-
-    def test_skip_test_files(self, test_discovery_service):
-        """Test that test files are skipped."""
-        should_gen, reason = test_discovery_service.should_generate_tests(
-            "tests/test_calculator.py", "test_project"
-        )
-        assert should_gen is False
-        assert "test file" in reason.lower()
-
-    def test_skip_init_files(self, test_discovery_service):
-        """Test that __init__.py files are skipped."""
-        should_gen, reason = test_discovery_service.should_generate_tests(
-            "src/__init__.py", "test_project"
-        )
-        assert should_gen is False
-
-    def test_skip_files_without_callables(
-        self, test_discovery_service, mock_graph_repo
-    ):
-        """Test skipping files with no callables."""
-        mock_graph_repo.query.return_value = [{"callable_count": 0}]
-
-        should_gen, reason = test_discovery_service.should_generate_tests(
-            "src/constants.py", "test_project"
-        )
-        assert should_gen is False
-        assert "no callables" in reason.lower()
-
-    def test_generate_for_files_with_callables(
-        self, test_discovery_service, mock_graph_repo
-    ):
-        """Test that files with callables should generate tests."""
-        mock_graph_repo.query.return_value = [{"callable_count": 5}]
-
-        should_gen, reason = test_discovery_service.should_generate_tests(
-            "src/calculator.py", "test_project"
-        )
-        assert should_gen is True
-        assert reason is None

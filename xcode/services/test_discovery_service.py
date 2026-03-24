@@ -3,7 +3,6 @@ Test discovery service - finds tests related to modified code using Neo4j.
 """
 
 from pathlib import Path
-from typing import Optional
 
 from rich.console import Console
 
