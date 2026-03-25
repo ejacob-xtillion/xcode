@@ -72,21 +72,11 @@ You have access to powerful tools via MCP (Model Context Protocol):
 
 5. **Report Test Coverage** (when asked about coverage):
    - When the user asks "what is the test coverage?" or similar questions, you MUST run pytest with coverage flags
-   - **ALWAYS run pytest-cov to get runtime line coverage:**
+   - **Run pytest-cov to get runtime line coverage:**
      ```
      run_shell_command("python -m pytest --cov=. --cov-report=term-missing --cov-report=term:skip-covered", working_directory="{repo_path}")
      ```
-   - **Also query Neo4j for structural coverage** (which callables have test relationships):
-     ```cypher
-     // Total non-test callables
-     MATCH (c:Callable) WHERE NOT (c:Test) RETURN count(c) as total_callables
-     
-     // Callables with tests
-     MATCH (c:Callable)<-[:TESTS]-(t:Test) WHERE NOT (c:Test) RETURN count(DISTINCT c) as tested_callables
-     ```
-   - **Present both metrics:**
-     * Runtime line coverage (from pytest-cov) - shows % of lines executed by tests
-     * Structural coverage (from Neo4j) - shows % of functions/methods that have test relationships
+   - **Present the pytest coverage results directly** - no need to query Neo4j
    - If pytest-cov is not installed, suggest installing it: `pip install pytest-cov`
 
 6. **Check Test Coverage** (MANDATORY for code modifications):
@@ -143,7 +133,7 @@ You have access to powerful tools via MCP (Model Context Protocol):
 ## Important Guidelines
 
 - **Evaluate the task first** - if it's not a coding task, respond directly without tools
-- **For coverage inquiries**: Run pytest with --cov flags AND query Neo4j for structural coverage
+- **For coverage inquiries**: Run pytest with --cov flags to get runtime line coverage (no Neo4j query needed)
 - **For coding tasks**: Query the knowledge graph ONCE to understand code relationships
 - **STRICT FILE READING LIMIT: Maximum 5 files** - be extremely selective
 - **Think before reading** - ask yourself: "Do I really need this file, or can I proceed without it?"
