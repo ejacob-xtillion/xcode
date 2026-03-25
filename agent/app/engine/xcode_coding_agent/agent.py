@@ -195,7 +195,31 @@ async def create_agent_instance(
     model = init_chat_model(**init_params)
     
     
+    # Configure tool retry middleware
     middleware = ()
+    if settings.tool_retry_enabled:
+        from langchain.agents.middleware import ToolRetryMiddleware
+        
+        retry_middleware = ToolRetryMiddleware(
+            max_retries=settings.tool_retry_max_attempts,
+            tools=None,  # Apply to all tools
+            retry_on=(Exception,),  # Retry on any exception
+            on_failure='continue',  # Feed error back to agent, don't stop execution
+            backoff_factor=settings.tool_retry_backoff_factor,
+            initial_delay=settings.tool_retry_initial_delay,
+            max_delay=settings.tool_retry_max_delay,
+            jitter=settings.tool_retry_jitter,
+        )
+        middleware = (retry_middleware,)
+        
+        logger.info(
+            "tool_retry_middleware_enabled",
+            max_retries=settings.tool_retry_max_attempts,
+            initial_delay=settings.tool_retry_initial_delay,
+            backoff_factor=settings.tool_retry_backoff_factor,
+            max_delay=settings.tool_retry_max_delay,
+            jitter=settings.tool_retry_jitter,
+        )
     
     # Create agent using LangChain's create_agent helper
     agent = create_agent(
