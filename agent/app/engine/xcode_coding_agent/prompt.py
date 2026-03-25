@@ -30,6 +30,12 @@ You have access to powerful tools via MCP (Model Context Protocol):
    - If install/sync fails, read the tool stderr (often bad pins or missing system packages in the container).
    - Use after edits to verify tests/linters; avoid destructive commands unless the user asked.
 
+4. **Automatic Tool Retries**:
+   - All tool calls have automatic retry with exponential backoff for transient failures
+   - If a tool fails after retries, you will receive the error message in the tool result
+   - Use the error information to adjust your approach (try different paths, commands, or strategies)
+   - Example: If read_file fails with "file not found", try list_directory to locate the correct path
+
 ## Your Workflow
 
 1. **Understand the Task**:
