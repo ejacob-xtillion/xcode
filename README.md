@@ -2,20 +2,18 @@
 
 > AI-powered coding assistant with codebase knowledge graphs
 
-xCode is a monorepo containing:
-- **CLI** (`xcode/`): Command-line interface for coding tasks
-- **Agent** (`agent/`): FastAPI + LangGraph AI agent with MCP tools
+xCode is an intelligent coding assistant that combines Neo4j knowledge graphs with LangGraph AI agents to understand and modify your codebase. It automatically verifies changes, generates tests, and fixes issues.
 
-## Features
+## Key Features
 
-- 🔍 **Knowledge Graph Integration**: Understands your codebase structure via Neo4j
-- 🤖 **AI Agent**: LangGraph-based agent with MCP tools (Neo4j, filesystem)
-- 💻 **Local LLM Support**: Works with Ollama, LM Studio, or cloud APIs
-- ✅ **Automatic Verification Loop**: Runs tests/linters after changes, generates missing tests
-- 🧪 **Smart Test Discovery**: Uses Neo4j to find related tests and untested code
-- 🔄 **Auto-Fix Retry**: Agent automatically fixes test failures (configurable attempts)
-- 📊 **Rich CLI**: Beautiful terminal UI with progress indicators
-- 🏗️ **Clean Architecture**: Modular design with clear separation of concerns
+- **Knowledge Graph Integration**: Understands your codebase structure via Neo4j
+- **AI Agent**: LangGraph-based agent with MCP tools (Neo4j, filesystem)
+- **Local LLM Support**: Works with Ollama, LM Studio, or cloud APIs
+- **Automatic Verification**: Runs tests/linters after changes, generates missing tests
+- **Smart Test Discovery**: Uses Neo4j to find related tests and untested code
+- **Auto-Fix Retry**: Agent automatically fixes test failures (configurable attempts)
+- **Rich CLI**: Beautiful terminal UI with progress indicators
+- **Clean Architecture**: Modular design with clear separation of concerns
 
 ## Quick Start
 
@@ -177,9 +175,16 @@ NEO4J_PASSWORD=password
 ## Documentation
 
 - [CLAUDE.md](CLAUDE.md) - Project guide for AI assistants
-- [DOCKER.md](DOCKER.md) - Docker setup instructions
-- [ARCHITECTURE.md](ARCHITECTURE.md) - Clean architecture details
+- [CONTRIBUTING.md](CONTRIBUTING.md) - Development guidelines
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - Clean architecture details
+- [docs/DOCKER.md](docs/DOCKER.md) - Docker setup instructions
 - [agent/README.md](agent/README.md) - Agent documentation
+
+### Additional Documentation
+
+- [docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) - Improvement suggestions
+- [docs/LATENCY_ANALYSIS.md](docs/LATENCY_ANALYSIS.md) - Performance analysis
+- [docs/REGRESSION_TEST_REPORT.md](docs/REGRESSION_TEST_REPORT.md) - Test reports
 
 ## License
 

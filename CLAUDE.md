@@ -211,3 +211,18 @@ The agent has a 100-step limit. If hit, the task is too complex or the agent is 
 - Agent imports stay as `app.*` (not `agent.app.*`)
 - CLI communicates with agent via HTTP/SSE only
 - Agent's LLM is configured in `agent/.env`, not via CLI flags
+
+---
+
+## Documentation
+
+- **README.md** - Quick start and overview
+- **CLAUDE.md** - This file (AI assistant guide)
+- **CONTRIBUTING.md** - Development guidelines and workflow
+- **CHANGELOG.md** - Version history and release notes
+- **docs/ARCHITECTURE.md** - Clean architecture details
+- **docs/DOCKER.md** - Docker setup and troubleshooting
+- **docs/IMPROVEMENTS.md** - Future enhancement suggestions
+- **docs/LATENCY_ANALYSIS.md** - Performance analysis
+- **docs/REGRESSION_TEST_REPORT.md** - Test reports and results
+- **agent/README.md** - Agent-specific documentation
