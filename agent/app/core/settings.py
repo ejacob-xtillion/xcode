@@ -160,6 +160,40 @@ class AppSettings(BaseSettings):
         description="Timeout for automatic requirements.txt install or uv sync",
     )
 
+    # Tool Retry Configuration
+    tool_retry_enabled: bool = Field(
+        default=True,
+        description="Enable automatic retry for failed tool calls with exponential backoff",
+    )
+    tool_retry_max_attempts: int = Field(
+        default=2,
+        ge=0,
+        le=5,
+        description="Maximum retry attempts per tool call (0 = no retries, just initial attempt)",
+    )
+    tool_retry_initial_delay: float = Field(
+        default=1.0,
+        ge=0.1,
+        le=10.0,
+        description="Initial delay in seconds before first retry",
+    )
+    tool_retry_backoff_factor: float = Field(
+        default=2.0,
+        ge=1.0,
+        le=10.0,
+        description="Exponential backoff multiplier (delay = initial * factor^retry_num)",
+    )
+    tool_retry_max_delay: float = Field(
+        default=30.0,
+        ge=1.0,
+        le=300.0,
+        description="Maximum delay cap in seconds between retries",
+    )
+    tool_retry_jitter: bool = Field(
+        default=True,
+        description="Add random jitter (±25%) to delays to prevent thundering herd",
+    )
+
     # Streaming Configuration
     stream_timeout: int = Field(default=1200, description="Streaming timeout in seconds (default: 20 minutes)")
 
