@@ -71,6 +71,7 @@ class XGraphRepository(GraphRepository):
                     enable_descriptions=enable_descriptions,
                     keep_existing_graph=True,  # Don't wipe other projects
                     graph_db_type="neo4j",
+                    export_analysis=False,  # Disable JSON export
                 )
 
         except Exception as e:

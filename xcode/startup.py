@@ -229,6 +229,7 @@ class StartupOrchestrator:
                     enable_descriptions=self.enable_descriptions,
                     keep_existing_graph=True,
                     graph_db_type="neo4j",
+                    export_analysis=False,  # Disable JSON export
                 )
             
         finally:
