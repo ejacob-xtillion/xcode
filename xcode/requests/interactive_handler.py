@@ -23,6 +23,7 @@ from rich.text import Text
 
 from xcode.banner import render_banner, render_help_table
 from xcode.domain.models import Task, XCodeConfig
+from xcode.formatting import ErrorFormatter, TaskFormatter
 from xcode.schema import get_schema
 from xcode.services.agent_service import AgentService
 from xcode.services.task_service import TaskService
@@ -66,6 +67,8 @@ class InteractiveHandler:
         self.console = console
         self.conversation_history: list[dict] = []
         self.session_active = True
+        self.task_formatter = TaskFormatter(console)
+        self.error_formatter = ErrorFormatter(console)
 
         # Set up prompt session with history and completion
         history_file = Path.home() / ".xcode" / "history.txt"
@@ -390,16 +393,20 @@ class InteractiveHandler:
         Args:
             result: The agent execution result
         """
-        if result.success:
-            self.console.print(Text("  ✓  Task completed", style="bold green"))
-            if result.iterations > 0:
-                self.console.print(
-                    Text(f"  Completed in {result.iterations} iteration(s)", style="dim")
-                )
-        else:
-            self.console.print(Text("  ✗  Task failed", style="bold red"))
-            if result.error:
-                self.console.print(Text(f"  Error: {result.error}", style="red"))
+        modified_files = result.modified_files if hasattr(result, "modified_files") else None
+
+        self.task_formatter.print_task_complete(
+            success=result.success,
+            duration=None,
+            iterations=result.iterations if result.iterations > 0 else None,
+            modified_files=modified_files,
+        )
+
+        if not result.success and result.error:
+            self.error_formatter.print_error(
+                error=result.error,
+                verbose=self.config.verbose,
+            )
 
         # Footer trace only when verbose and repo did not already print trace recap panel
         if result.logs and self.config.verbose and not self.config.agent_trace_recap:
