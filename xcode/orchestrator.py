@@ -10,7 +10,8 @@ from dataclasses import dataclass
 
 from rich.console import Console
 
-from xcode.domain.models import AgentResult, Task, XCodeConfig, VerificationResult
+from xcode.domain.models import AgentResult, Task, VerificationResult, XCodeConfig
+from xcode.formatting import VerificationFormatter
 from xcode.repositories.agent_repository import LaFactoriaRepository
 from xcode.repositories.graph_repository import XGraphRepository
 from xcode.schema import get_schema
@@ -32,6 +33,7 @@ class XCodeOrchestrator:
     def __post_init__(self):
         """Initialize services and repositories."""
         self.task_service = TaskService()
+        self.formatter = VerificationFormatter(self.console)
 
         _llm = self.config.get_llm_config()
         graph_repo = XGraphRepository(
@@ -98,11 +100,12 @@ class XCodeOrchestrator:
             # Run verification loop if enabled and task succeeded
             if result.success and self.config.verify_changes:
                 verification_result = self._run_verification_loop(task, result, schema)
-                
+
                 # Update result based on verification
                 if not verification_result.success:
                     result.success = False
-                    result.error = f"Verification failed: {verification_result.error or verification_result.output}"
+                    error_msg = verification_result.error or verification_result.output
+                    result.error = f"Verification failed: {error_msg}"
 
             return result
 
@@ -130,7 +133,7 @@ class XCodeOrchestrator:
         Returns:
             VerificationResult with verification outcome
         """
-        self.console.print("\n[bold cyan]Running verification loop...[/bold cyan]")
+        self.formatter.print_verification_start()
 
         # Step 1: Check if any files were modified
         if not agent_result.modified_files:
@@ -141,8 +144,6 @@ class XCodeOrchestrator:
                 output="No changes to verify",
             )
 
-        self.console.print(f"[dim]Modified files: {', '.join(agent_result.modified_files)}[/dim]")
-
         # Step 2: Discover related tests via Neo4j
         test_discovery = TestDiscoveryService(
             self.graph_service.graph_repo, self.console
@@ -152,16 +153,15 @@ class XCodeOrchestrator:
             agent_result.modified_files, self.config.project_name
         )
 
-        self.console.print(
-            f"[dim]Found {test_summary['total_related_tests']} related tests, "
-            f"{test_summary['untested_callables']} untested callables[/dim]"
+        self.formatter.print_test_discovery(
+            related_tests=test_summary["total_related_tests"],
+            untested_callables=test_summary["untested_callables"],
+            modified_files=agent_result.modified_files,
         )
 
         # Step 3: Generate tests for untested code if enabled
         if self.config.generate_missing_tests and test_summary["untested_callables"] > 0:
-            self.console.print(
-                f"[cyan]Generating tests for {test_summary['untested_callables']} untested callables...[/cyan]"
-            )
+            self.formatter.print_test_generation(test_summary["untested_callables"])
 
             test_gen_service = TestGenerationService(self.agent_service, self.console)
             test_gen_result = asyncio.run(
@@ -195,8 +195,10 @@ class XCodeOrchestrator:
             and fix_attempts < self.config.max_fix_attempts
         ):
             fix_attempts += 1
+            max_attempts = self.config.max_fix_attempts
             self.console.print(
-                f"[yellow]Verification failed, attempting fix {fix_attempts}/{self.config.max_fix_attempts}...[/yellow]"
+                f"[yellow]Verification failed, "
+                f"attempting fix {fix_attempts}/{max_attempts}...[/yellow]"
             )
 
             # Create fix task with verification output
@@ -232,13 +234,11 @@ Analyze the errors, make necessary corrections, and re-run the tests to verify t
             )
 
         # Display final verification status
-        if verification_result.success:
-            self.console.print("[green]✓ Verification passed[/green]")
-        else:
-            self.console.print(
-                f"[red]✗ Verification failed after {fix_attempts} fix attempts[/red]"
-            )
-            if self.config.verbose:
-                self.console.print(f"\n{verification_result.output}")
+        self.formatter.print_verification_result(
+            success=verification_result.success,
+            checks_run=verification_result.checks_run,
+            output=verification_result.output if self.config.verbose else None,
+            fix_attempts=fix_attempts,
+        )
 
         return verification_result
