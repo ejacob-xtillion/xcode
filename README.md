@@ -101,19 +101,56 @@ xcode/
 
 ## Architecture
 
+xCode follows a clean architecture with clear separation between the CLI, agent, and data layers:
+
+```mermaid
+graph TB
+    subgraph "User Interface"
+        CLI[CLI / Interactive Mode]
+    end
+    
+    subgraph "CLI Layer (xcode/)"
+        CLI --> Orchestrator[Orchestrator]
+        Orchestrator --> Services[Services Layer]
+        Services --> GraphSvc[Graph Service]
+        Services --> AgentSvc[Agent Service]
+        Services --> VerifySvc[Verification Service]
+        
+        GraphSvc --> GraphRepo[Graph Repository]
+        AgentSvc --> AgentRepo[Agent Repository]
+        VerifySvc --> TestDiscovery[Test Discovery]
+        VerifySvc --> TestGen[Test Generation]
+    end
+    
+    subgraph "Agent Layer (agent/)"
+        AgentRepo -->|HTTP/SSE| AgentAPI[Agent API]
+        AgentAPI --> LangGraph[LangGraph Agent]
+        LangGraph --> MCPTools[MCP Tools]
+        MCPTools --> Neo4jTool[Neo4j Tool]
+        MCPTools --> FSTool[Filesystem Tool]
+    end
+    
+    subgraph "Data Layer"
+        GraphRepo -->|Cypher| Neo4j[(Neo4j<br/>Knowledge Graph)]
+        Neo4jTool -->|Query| Neo4j
+        FSTool -->|Read/Write| Files[Codebase Files]
+        TestDiscovery -->|Query| Neo4j
+    end
+    
+    style CLI fill:#4A90E2,stroke:#2E5C8A,color:#fff
+    style LangGraph fill:#50C878,stroke:#2E7D4E,color:#fff
+    style Neo4j fill:#008CC1,stroke:#005A7D,color:#fff
+    style Files fill:#F5A623,stroke:#C17D11,color:#fff
 ```
-CLI (xcode/cli.py)
-    ↓
-Orchestrator (xcode/orchestrator.py)
-    ↓
-Agent Repository (xcode/repositories/agent_repository.py)
-    ↓ HTTP/SSE
-Agent API (agent/app/api/agents/)
-    ↓
-LangGraph Agent (agent/app/engine/xcode_coding_agent/)
-    ↓ MCP
-Tools: Neo4j (knowledge graph), Filesystem (read/write files)
-```
+
+### Architecture Flow
+
+1. **CLI** receives user tasks and builds knowledge graph
+2. **Orchestrator** coordinates services and manages workflow
+3. **Agent Service** sends tasks to the agent via HTTP/SSE
+4. **LangGraph Agent** uses MCP tools to query Neo4j and modify files
+5. **Verification Service** discovers tests, generates missing ones, and runs verification
+6. **Auto-Fix Loop** retries with agent if tests fail
 
 ## Local LLM (Ollama)
 
