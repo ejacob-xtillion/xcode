@@ -87,8 +87,7 @@ async def create_agent_instance(
         )
     
     
-    model_name = "gpt-5"
-    
+    model_name = settings.llm_model
 
     # Build model identifier with provider prefix if needed
     llm_type = "openai".lower()

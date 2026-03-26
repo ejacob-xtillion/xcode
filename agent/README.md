@@ -41,7 +41,7 @@ To see which agents are available, check the `app/engine/` directory or look at 
 - Python 3.13+
 - [UV](https://docs.astral.sh/uv/) package manager (recommended) or pip
 - PostgreSQL (optional - for production persistence, can run in-memory mode)
-- LLM API key (configured in `.env` file)
+- LLM API key (in the **monorepo root** `.env`; see `../.env.example`)
 
 ### Installation
 
@@ -52,8 +52,7 @@ uv sync
 # Or with pip
 pip install -e .
 
-# The .env file should already be included from generation
-# If not, copy .env.example to .env and configure your API keys
+# In the xCode monorepo: copy and edit the repository root `.env` (not a file under agent/).
 ```
 
 ### Run the Application

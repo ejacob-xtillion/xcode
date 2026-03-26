@@ -128,7 +128,7 @@ Query: "Read /Users/elijahgjacob/xcode/pyproject.toml"
 
 **Implementation:**
 ```bash
-# In agent/.env
+# In repository root .env
 LLM_MODEL=gpt-4.1-mini
 # or
 LLM_MODEL=claude-3-5-sonnet-20241022

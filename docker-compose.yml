@@ -54,11 +54,11 @@ services:
       - ./agent:/app
       - /app/.venv
       - /Users/elijahgjacob:/Users/elijahgjacob
+      # Same keys as compose env_file; keeps /app/.env aligned for tools that read CWD .env
+      - ./.env:/app/.env:ro
     env_file:
       - path: ./.env
         required: true
-      - path: ./agent/.env
-        required: false
     environment:
       - PYTHONUNBUFFERED=1
       - NEO4J_URI=bolt://neo4j:7687
@@ -72,8 +72,10 @@ services:
       - POSTGRES_PASSWORD=xagents_password
       - POSTGRES_DB=xagents_db
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      # Single key: compose supplies LLM_API_KEY from OPENAI_API_KEY when LLM_API_KEY is unset
+      - LLM_API_KEY=${LLM_API_KEY:-${OPENAI_API_KEY}}
       - LLM_BASE_URL=${LLM_BASE_URL:-https://api.openai.com/v1}
-      - LLM_MODEL=${LLM_MODEL:-gpt-4}
+      - LLM_MODEL=${LLM_MODEL:-gpt-4.1-mini}
     depends_on:
       neo4j:
         condition: service_healthy

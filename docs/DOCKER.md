@@ -9,16 +9,18 @@ This Docker setup orchestrates four services:
 ## Prerequisites
 
 - Docker and Docker Compose installed
-- OpenAI API key (set in `agent/.env`)
+- OpenAI API key (set in the repository root `.env`)
 
-## Agent Configuration
+## Configuration
 
-The agent is integrated into this repository under `agent/`. Configure it by copying the example env file:
+Copy the single example env file at the repo root:
 
 ```bash
-cp agent/.env.example agent/.env
-# Edit agent/.env and set your OPENAI_API_KEY
+cp .env.example .env
+# Edit .env and set OPENAI_API_KEY (and other keys as needed)
 ```
+
+Compose loads this file for every service; the agent also reads `<repo>/.env` (mounted at `/app/.env` in the agent container).
 
 ## Quick Start
 

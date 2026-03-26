@@ -147,7 +147,7 @@ RETURN c.name, c.signature
 ### Local LLM (Ollama)
 
 - **`--local` / `XCODE_LLM_ENDPOINT`**: Used for **knowledge graph (xgraph)**. `get_llm_config()` normalizes port `11434` to an OpenAI-compatible base URL with `/v1`. xgraph runs with temporary `OPENAI_BASE_URL` / `OPENAI_API_KEY=ollama` during graph build (including interactive startup).
-- **La-factoria agent**: Uses **`agent/.env`** (`LLM_BASE_URL`, `LLM_MODEL`, etc.), not the CLI flags. For Ollama set e.g. `LLM_BASE_URL=http://localhost:11434/v1` (or `host.docker.internal` from containers).
+- **Agent API**: Uses the **repository root** `.env` (`LLM_BASE_URL`, `LLM_MODEL`, `OPENAI_API_KEY`, etc.), not the CLI `--local` flag. For a local OpenAI-compatible server use the appropriate `/v1` base URL and key (e.g. `host.docker.internal` from containers when the server runs on the host).
 
 ---
 
@@ -168,22 +168,17 @@ mypy xcode
 
 ## Environment Variables
 
-### CLI (.env)
+### Single root `.env` (CLI + agent)
 ```bash
 NEO4J_URI=bolt://localhost:7687
 NEO4J_USER=neo4j
 NEO4J_PASSWORD=password
-LA_FACTORIA_URL=http://localhost:8000
-```
-
-### Agent (agent/.env)
-```bash
 OPENAI_API_KEY=your-key
-NEO4J_URI=bolt://neo4j:7687
-NEO4J_USERNAME=neo4j
-NEO4J_PASSWORD=password
+LLM_MODEL=gpt-4.1-mini
+LA_FACTORIA_URL=http://localhost:8000
 DATABASE_URL=postgresql://user:pass@postgres:5432/db
 ```
+See `.env.example`. Optional: `XCODE_ENV_FILE` to point the agent at a different dotenv path.
 
 ---
 
@@ -210,7 +205,7 @@ The agent has a 100-step limit. If hit, the task is too complex or the agent is 
 - Agent runs in its own container with separate Python environment
 - Agent imports stay as `app.*` (not `agent.app.*`)
 - CLI communicates with agent via HTTP/SSE only
-- Agent's LLM is configured in `agent/.env`, not via CLI flags
+- Agent LLM and DB settings come from the repository root `.env` (same file Compose uses), not via CLI `--local` for the agent
 
 ---
 

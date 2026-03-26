@@ -20,9 +20,9 @@ xCode is an intelligent coding assistant that combines Neo4j knowledge graphs wi
 ### Docker (Recommended)
 
 ```bash
-# Configure agent
-cp agent/.env.example agent/.env
-# Edit agent/.env and set OPENAI_API_KEY
+# Configure (single root file for CLI + agent)
+cp .env.example .env
+# Edit .env and set OPENAI_API_KEY (and any other keys you need)
 
 # Start all services
 docker-compose up -d
@@ -155,7 +155,7 @@ graph TB
 ## Local LLM (Ollama)
 
 - **Knowledge graph (`xgraph`)**: `xcode --local` (or `XCODE_LLM_ENDPOINT`) normalizes Ollama to an OpenAI-compatible base URL (`http://localhost:11434/v1`) and sets `OPENAI_*` for xgraph while the graph builds. Start Ollama and pull a model (e.g. `ollama pull llama3.2`).
-- **Coding agent (la-factoria)**: The agent HTTP API uses the **agent server's** LLM env (`agent/.env`). For Ollama, set `LLM_BASE_URL` to `http://localhost:11434/v1` (or `http://host.docker.internal:11434/v1` from Docker) and `LLM_API_KEY=ollama` (or any non-empty placeholder Ollama accepts).
+- **Coding agent**: Uses the same **repository root** `.env` as Compose (`LLM_BASE_URL`, `LLM_MODEL`, `OPENAI_API_KEY`, etc.). For a local OpenAI-compatible server, point `LLM_BASE_URL` at its `/v1` URL and set `LLM_API_KEY` as that server requires.
 
 ## Neo4j Knowledge Graph
 
@@ -193,20 +193,15 @@ mypy xcode
 
 ## Environment Variables
 
-### CLI (.env)
+Use **one** file at the repo root: `.env` (see `.env.example`). Docker Compose loads it for the CLI and agent; the agent process also reads `<repo>/.env` directly. Override the path with `XCODE_ENV_FILE` if needed.
+
 ```bash
 NEO4J_URI=bolt://localhost:7687
 NEO4J_USER=neo4j
 NEO4J_PASSWORD=password
-LA_FACTORIA_URL=http://localhost:8000
-```
-
-### Agent (agent/.env)
-```bash
 OPENAI_API_KEY=your-key
-NEO4J_URI=bolt://neo4j:7687
-NEO4J_USERNAME=neo4j
-NEO4J_PASSWORD=password
+LLM_MODEL=gpt-4.1-mini
+LA_FACTORIA_URL=http://localhost:8000   # local CLI; compose sets this inside containers
 ```
 
 ## Documentation

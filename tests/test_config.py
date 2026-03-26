@@ -69,7 +69,7 @@ class TestXCodeConfig:
             task="test",
             repo_path=tmp_path,
         )
-        assert config_cloud.model == "gpt-5"
+        assert config_cloud.model == "gpt-4.1-mini"
 
         # Local default
         config_local = XCodeConfig(

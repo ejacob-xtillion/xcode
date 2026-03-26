@@ -4,9 +4,31 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+def _xcode_repo_root() -> Path:
+    """Repository root (directory that contains the `agent/` package)."""
+    return Path(__file__).resolve().parents[3]
+
+
+def xcode_env_file_paths() -> tuple[str, ...]:
+    """
+    Dotenv file paths for the agent. Single source of truth: `<repo>/.env`.
+
+    Override with XCODE_ENV_FILE (absolute or user-relative path) when needed.
+    Pydantic ignores a path that does not exist.
+    """
+    import os
+
+    override = os.environ.get("XCODE_ENV_FILE")
+    if override:
+        p = Path(override).expanduser()
+        if p.is_file():
+            return (str(p),)
+    return (str(_xcode_repo_root() / ".env"),)
+
+
 class AppSettings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=xcode_env_file_paths(),
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",  # Ignore extra environment variables not defined in model
@@ -245,12 +267,14 @@ class AppSettings(BaseSettings):
         # This handles cases where variables are in .env but not in os.environ
         try:
             from dotenv import dotenv_values
-            # Try .env file in current working directory (where the app runs from)
-            env_file = Path(".env")
-            if env_file.exists():
-                env_vars = dotenv_values(env_file)
-                return env_vars.get(key)
-            
+
+            for path_str in xcode_env_file_paths():
+                env_file = Path(path_str)
+                if env_file.is_file():
+                    env_vars = dotenv_values(env_file)
+                    v = env_vars.get(key)
+                    if v:
+                        return v
         except Exception:
             # File read errors, etc. - fail silently and return None
             pass

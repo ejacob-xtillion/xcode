@@ -20,13 +20,8 @@ Thank you for your interest in contributing to xCode! This document provides gui
 
 2. **Set up environment variables:**
    ```bash
-   # CLI environment
-   cp .env.docker.example .env
-   # Edit .env with your settings
-   
-   # Agent environment
-   cp agent/.env.example agent/.env
-   # Edit agent/.env and set OPENAI_API_KEY
+   cp .env.example .env
+   # Edit .env (Neo4j, OPENAI_API_KEY, LLM_*, etc.)
    ```
 
 3. **Start backend services:**
