@@ -54,6 +54,13 @@ class AppSettings(BaseSettings):
 
 
     # LLM Configuration
+    llm_provider: str = Field(
+        default="openai",
+        description=(
+            "Routing mode for init_chat_model: openai, litellm (OpenAI-compatible proxy), "
+            "bedrock, azure, google_genai, custom"
+        ),
+    )
     llm_api_key: Optional[str] = Field(default=None, description="LLM API key (not required for Bedrock)")
     llm_model: str = Field(default="gpt-4.1-mini")
     llm_base_url: Optional[str] = Field(default=None)

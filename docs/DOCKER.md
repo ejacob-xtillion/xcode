@@ -1,10 +1,11 @@
 # Docker Setup for xCode
 
-This Docker setup orchestrates four services:
+This Docker setup orchestrates four core services (plus an optional LiteLLM profile):
 1. **PostgreSQL** - Agent session storage
 2. **Neo4j** - Knowledge graph database
 3. **xCode Agent** - AI agent backend (integrated in `agent/` directory)
 4. **xCode CLI** - Interactive coding assistant
+5. **LiteLLM** (optional, `docker compose --profile litellm`) - OpenAI-compatible model gateway
 
 ## Prerequisites
 
@@ -85,6 +86,11 @@ docker-compose run --rm xcode
 - **API Docs**: http://localhost:8000/docs
 - **Health Check**: GET /health endpoint
 - **Startup**: ~40 seconds (includes migrations)
+
+### LiteLLM AI Gateway (Port 4000, optional)
+- **Purpose**: OpenAI-compatible proxy for routing models through one endpoint (pinned `ghcr.io/berriai/litellm` tag in `docker-compose.yml`).
+- **Start**: `docker compose --profile litellm up -d` (requires `LITELLM_MASTER_KEY` and `OPENAI_API_KEY` in `.env`).
+- **Agent**: Set `LLM_PROVIDER=litellm`, `LLM_BASE_URL=http://litellm:4000/v1`, and `LLM_API_KEY` to the same value as `LITELLM_MASTER_KEY`. Extend `litellm/config.yaml` so `model_name` matches `LLM_MODEL`.
 
 ### xCode CLI
 - **Purpose**: Interactive coding assistant

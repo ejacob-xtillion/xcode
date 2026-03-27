@@ -212,9 +212,10 @@ All configuration is managed via the `.env` file:
 
 ```bash
 # LLM Configuration
+LLM_PROVIDER=openai  # openai | litellm | bedrock | azure | google_genai | custom
 LLM_API_KEY=your-api-key-here
-LLM_BASE_URL=  # Optional, for custom endpoints
-LLM_MODEL=gpt-4o-mini  # Optional, defaults in settings
+LLM_BASE_URL=  # Required for litellm/azure/custom; use http://litellm:4000/v1 with Compose profile `litellm`
+LLM_MODEL=gpt-4o-mini  # Optional, defaults in settings; must match a model_name in litellm/config.yaml when using litellm
 LLM_TEMPERATURE=0.0  # Optional
 
 # Database Configuration (Optional)

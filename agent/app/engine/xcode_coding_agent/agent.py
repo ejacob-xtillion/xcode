@@ -23,6 +23,17 @@ from app.engine.custom_tools import get_all_tools as get_custom_tools
 
 logger = get_logger()
 
+
+def _litellm_openai_base_url(base_url: str) -> str:
+    """Ensure OpenAI-compatible clients target the LiteLLM proxy /v1 root."""
+    u = (base_url or "").strip().rstrip("/")
+    if not u:
+        return u
+    if u.endswith("/v1"):
+        return u
+    return f"{u}/v1"
+
+
 async def create_agent_instance(
     settings: AppSettings, 
     checkpointer: BaseCheckpointSaver,
@@ -90,7 +101,19 @@ async def create_agent_instance(
     model_name = settings.llm_model
 
     # Build model identifier with provider prefix if needed
-    llm_type = "openai".lower()
+    llm_type = (settings.llm_provider or "openai").strip().lower()
+    if llm_type not in {
+        "openai",
+        "litellm",
+        "bedrock",
+        "azure",
+        "google_genai",
+        "custom",
+    }:
+        raise ValueError(
+            f"Unsupported LLM_PROVIDER={llm_type!r}. "
+            "Use one of: openai, litellm, bedrock, azure, google_genai, custom."
+        )
     
     # Providers that use {provider}:{model} format
     PROVIDER_PREFIXES = {
@@ -157,7 +180,7 @@ async def create_agent_instance(
                 "or neither to use IAM role-based authentication."
             )
 
-    elif llm_type == "litellm" and settings.llm_base_url:
+    elif llm_type == "litellm":
         init_params["model_provider"] = "openai"
         if settings.llm_api_key:
             init_params["api_key"] = settings.llm_api_key
@@ -179,11 +202,12 @@ async def create_agent_instance(
             raise ValueError(f"{llm_type.title()} provider requires llm_base_url")
         init_params["base_url"] = settings.llm_base_url
     elif llm_type == "litellm":
-        # LiteLLM proxy mode: requires LLM_BASE_URL, uses model_provider="openai" (set above)
-        # Model names: "us.anthropic.claude-*" (Bedrock), "claude-*" (Anthropic), etc.
+        # LiteLLM proxy: OpenAI-compatible API; base URL must end with /v1 for ChatOpenAI.
         if not settings.llm_base_url:
-            raise ValueError("LiteLLM provider requires llm_base_url (LiteLLM proxy URL)")
-        init_params["base_url"] = settings.llm_base_url
+            raise ValueError(
+                "LiteLLM provider requires llm_base_url (e.g. http://litellm:4000/v1 from Docker Compose)"
+            )
+        init_params["base_url"] = _litellm_openai_base_url(settings.llm_base_url)
     elif settings.llm_base_url:
         # Optional base_url for other providers (custom endpoints)
         init_params["base_url"] = settings.llm_base_url

@@ -1,0 +1,17 @@
+# LiteLLM proxy config for xCode (Compose profile `litellm`).
+# Pin the gateway image in docker-compose.yml; rotate LITELLM_MASTER_KEY if exposed.
+# Align `model_name` entries with LLM_MODEL in the repo root `.env`.
+#
+# Docs: https://docs.litellm.ai/docs/proxy/configs
+
+model_list:
+  - model_name: gpt-4.1-mini
+    litellm_params:
+      model: gpt-4.1-mini
+      api_key: os.environ/OPENAI_API_KEY
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+
+litellm_settings:
+  drop_params: true

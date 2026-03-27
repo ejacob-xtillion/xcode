@@ -155,7 +155,8 @@ graph TB
 ## Local LLM (Ollama)
 
 - **Knowledge graph (`xgraph`)**: `xcode --local` (or `XCODE_LLM_ENDPOINT`) normalizes Ollama to an OpenAI-compatible base URL (`http://localhost:11434/v1`) and sets `OPENAI_*` for xgraph while the graph builds. Start Ollama and pull a model (e.g. `ollama pull llama3.2`).
-- **Coding agent**: Uses the same **repository root** `.env` as Compose (`LLM_BASE_URL`, `LLM_MODEL`, `OPENAI_API_KEY`, etc.). For a local OpenAI-compatible server, point `LLM_BASE_URL` at its `/v1` URL and set `LLM_API_KEY` as that server requires.
+- **Coding agent**: Uses the same **repository root** `.env` as Compose (`LLM_PROVIDER`, `LLM_BASE_URL`, `LLM_MODEL`, `OPENAI_API_KEY`, etc.). For a local OpenAI-compatible server, point `LLM_BASE_URL` at its `/v1` URL and set `LLM_API_KEY` as that server requires.
+- **LiteLLM proxy**: `docker compose --profile litellm up -d` starts a pinned official gateway (`litellm/config.yaml`). Set `LLM_PROVIDER=litellm`, `LLM_BASE_URL=http://litellm:4000/v1` (or `http://localhost:4000/v1` from the host), `LITELLM_MASTER_KEY`, and `LLM_API_KEY` to that master key. See `docs/DOCKER.md`.
 
 ## Neo4j Knowledge Graph
 
