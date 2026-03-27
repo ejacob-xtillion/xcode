@@ -57,7 +57,7 @@ class AppSettings(BaseSettings):
     llm_provider: str = Field(
         default="openai",
         description=(
-            "Routing mode for init_chat_model: openai, litellm (OpenAI-compatible proxy), "
+            "Routing mode for init_chat_model: openai, openai_proxy (any OpenAI-compatible gateway), "
             "bedrock, azure, google_genai, custom"
         ),
     )

@@ -92,9 +92,9 @@ Tools: Neo4j (knowledge graph), Filesystem (read/write files)
 # Start all services
 docker-compose up -d
 
-# Optional: LiteLLM AI Gateway (pinned official image `ghcr.io/berriai/litellm`)
-docker compose --profile litellm up -d
-# In `.env`: LLM_PROVIDER=litellm, LLM_BASE_URL=http://litellm:4000/v1, LLM_API_KEY=<same as LITELLM_MASTER_KEY>
+# Optional: OpenAI-compatible LLM gateway (default image: LiteLLM; replace in compose for other vendors)
+docker compose --profile llm-proxy up -d
+# In `.env`: LLM_PROVIDER=openai_proxy, LLM_BASE_URL=http://llm-proxy:4000/v1, LLM_API_KEY=<gateway client secret, e.g. LLM_PROXY_AUTH_KEY>
 
 # Run a task
 docker-compose exec xcode xcode "add logging to main.py"
@@ -180,7 +180,7 @@ NEO4J_PASSWORD=password
 OPENAI_API_KEY=your-key
 LLM_PROVIDER=openai
 LLM_MODEL=gpt-4.1-mini
-# Optional LiteLLM: LLM_PROVIDER=litellm, LLM_BASE_URL=http://litellm:4000/v1, LITELLM_MASTER_KEY, LLM_API_KEY=<master key>
+# Optional gateway: LLM_PROVIDER=openai_proxy, LLM_BASE_URL=http://llm-proxy:4000/v1, LLM_PROXY_AUTH_KEY, LLM_API_KEY=<same as gateway expects>
 LA_FACTORIA_URL=http://localhost:8000
 DATABASE_URL=postgresql://user:pass@postgres:5432/db
 ```

@@ -1,0 +1,18 @@
+# Example config for the optional `llm-proxy` Compose service.
+# Default image is LiteLLM (OpenAI-compatible). Swap the image in docker-compose.yml
+# for another gateway (e.g. enterprise OpenAI-compatible APIs) and replace this file
+# with that vendor’s configuration.
+#
+# LiteLLM format reference: https://docs.litellm.ai/docs/proxy/configs
+
+model_list:
+  - model_name: gpt-4.1-mini
+    litellm_params:
+      model: gpt-4.1-mini
+      api_key: os.environ/OPENAI_API_KEY
+
+general_settings:
+  master_key: os.environ/LLM_PROXY_AUTH_KEY
+
+litellm_settings:
+  drop_params: true

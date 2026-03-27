@@ -24,8 +24,8 @@ from app.engine.custom_tools import get_all_tools as get_custom_tools
 logger = get_logger()
 
 
-def _litellm_openai_base_url(base_url: str) -> str:
-    """Ensure OpenAI-compatible clients target the LiteLLM proxy /v1 root."""
+def _openai_compatible_base_url(base_url: str) -> str:
+    """Ensure OpenAI-compatible clients use a base URL ending in /v1."""
     u = (base_url or "").strip().rstrip("/")
     if not u:
         return u
@@ -104,7 +104,7 @@ async def create_agent_instance(
     llm_type = (settings.llm_provider or "openai").strip().lower()
     if llm_type not in {
         "openai",
-        "litellm",
+        "openai_proxy",
         "bedrock",
         "azure",
         "google_genai",
@@ -112,7 +112,7 @@ async def create_agent_instance(
     }:
         raise ValueError(
             f"Unsupported LLM_PROVIDER={llm_type!r}. "
-            "Use one of: openai, litellm, bedrock, azure, google_genai, custom."
+            "Use one of: openai, openai_proxy, bedrock, azure, google_genai, custom."
         )
     
     # Providers that use {provider}:{model} format
@@ -180,7 +180,7 @@ async def create_agent_instance(
                 "or neither to use IAM role-based authentication."
             )
 
-    elif llm_type == "litellm":
+    elif llm_type == "openai_proxy":
         init_params["model_provider"] = "openai"
         if settings.llm_api_key:
             init_params["api_key"] = settings.llm_api_key
@@ -201,13 +201,12 @@ async def create_agent_instance(
         if not settings.llm_base_url:
             raise ValueError(f"{llm_type.title()} provider requires llm_base_url")
         init_params["base_url"] = settings.llm_base_url
-    elif llm_type == "litellm":
-        # LiteLLM proxy: OpenAI-compatible API; base URL must end with /v1 for ChatOpenAI.
+    elif llm_type == "openai_proxy":
         if not settings.llm_base_url:
             raise ValueError(
-                "LiteLLM provider requires llm_base_url (e.g. http://litellm:4000/v1 from Docker Compose)"
+                "openai_proxy requires llm_base_url (OpenAI-compatible gateway root, e.g. http://llm-proxy:4000/v1)"
             )
-        init_params["base_url"] = _litellm_openai_base_url(settings.llm_base_url)
+        init_params["base_url"] = _openai_compatible_base_url(settings.llm_base_url)
     elif settings.llm_base_url:
         # Optional base_url for other providers (custom endpoints)
         init_params["base_url"] = settings.llm_base_url

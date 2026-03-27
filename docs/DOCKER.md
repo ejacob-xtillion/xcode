@@ -1,11 +1,11 @@
 # Docker Setup for xCode
 
-This Docker setup orchestrates four core services (plus an optional LiteLLM profile):
+This Docker setup orchestrates four core services (plus an optional LLM gateway profile):
 1. **PostgreSQL** - Agent session storage
 2. **Neo4j** - Knowledge graph database
 3. **xCode Agent** - AI agent backend (integrated in `agent/` directory)
 4. **xCode CLI** - Interactive coding assistant
-5. **LiteLLM** (optional, `docker compose --profile litellm`) - OpenAI-compatible model gateway
+5. **llm-proxy** (optional, `docker compose --profile llm-proxy`) - OpenAI-compatible model gateway (default image: LiteLLM; swap image and `llm-proxy/config.yaml` for another vendor)
 
 ## Prerequisites
 
@@ -87,10 +87,10 @@ docker-compose run --rm xcode
 - **Health Check**: GET /health endpoint
 - **Startup**: ~40 seconds (includes migrations)
 
-### LiteLLM AI Gateway (Port 4000, optional)
-- **Purpose**: OpenAI-compatible proxy for routing models through one endpoint (pinned `ghcr.io/berriai/litellm` tag in `docker-compose.yml`).
-- **Start**: `docker compose --profile litellm up -d` (requires `LITELLM_MASTER_KEY` and `OPENAI_API_KEY` in `.env`).
-- **Agent**: Set `LLM_PROVIDER=litellm`, `LLM_BASE_URL=http://litellm:4000/v1`, and `LLM_API_KEY` to the same value as `LITELLM_MASTER_KEY`. Extend `litellm/config.yaml` so `model_name` matches `LLM_MODEL`.
+### OpenAI-compatible LLM gateway (Port 4000, optional)
+- **Purpose**: Single OpenAI-compatible entrypoint for models. Default stack uses a pinned `ghcr.io/berriai/litellm` image; change `image`, `command`, `volumes`, and `healthcheck` in `docker-compose.yml` for another gateway (e.g. vendor-managed APIs).
+- **Start**: `docker compose --profile llm-proxy up -d` (for the default image: `LLM_PROXY_AUTH_KEY` and `OPENAI_API_KEY` in `.env`).
+- **Agent**: `LLM_PROVIDER=openai_proxy`, `LLM_BASE_URL=http://llm-proxy:4000/v1`, `LLM_API_KEY` set to whatever the gateway requires (with the default image, match `LLM_PROXY_AUTH_KEY`). Align `llm-proxy/config.yaml` (or your vendor config) with `LLM_MODEL`.
 
 ### xCode CLI
 - **Purpose**: Interactive coding assistant
