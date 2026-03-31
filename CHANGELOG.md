@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** Renamed environment variable `LA_FACTORIA_URL` to `XCODE_AGENT_URL` for the agent HTTP API base URL. Update `.env` and deployment config accordingly.
+- Renamed `LaFactoriaRepository` to `AgentHttpRepository` in the CLI package.
+
 ### Added
 - Repository cleanup and documentation organization
 - CONTRIBUTING.md with development guidelines

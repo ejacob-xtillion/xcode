@@ -1,9 +1,10 @@
 """
-Agent runner - spawns and manages la-factoria agents
+Agent runner — HTTP client for the xCode agent API (legacy/simple path).
 """
 
 import asyncio
 import json
+import os
 from pathlib import Path
 
 import httpx
@@ -21,14 +22,16 @@ from xcode.task_classifier import TaskClassifier
 
 
 class AgentRunner:
-    """Runs la-factoria agents with task and context."""
+    """Runs tasks against the xCode agent HTTP API with task context."""
 
     def __init__(self, config: XCodeConfig, console: Console):
         self.config = config
         self.console = console
         self.max_iterations = 10
         self.current_iteration = 0
-        self.lf_base_url = "http://localhost:8000"
+        self.agent_base_url = os.getenv(
+            "XCODE_AGENT_URL", "http://localhost:8000"
+        )
         self.agent_name = "xcode_coding_agent"
         self.tool_call_counter = 0  # Track tool calls for better display
         self.quiet_mode = not config.verbose  # Quiet by default, verbose to see details
@@ -84,7 +87,7 @@ class AgentRunner:
 
     async def _run_agent_async(self, conversation_context: str = "") -> XCodeResult:
         """
-        Run the agent via la-factoria API with streaming.
+        Run the agent via HTTP streaming.
 
         Args:
             conversation_context: Previous conversation history for interactive mode
@@ -128,20 +131,20 @@ class AgentRunner:
         tool_calls = []  # Track all tool calls for summary
 
         try:
-            self.console.print("\n[bold cyan]🤖 Connecting to la-factoria agent...[/bold cyan]")
+            self.console.print("\n[bold cyan]🤖 Connecting to xCode agent...[/bold cyan]")
 
             async with httpx.AsyncClient(timeout=httpx.Timeout(300.0)) as client:
                 # Stream agent execution
                 async with client.stream(
                     "POST",
-                    f"{self.lf_base_url}/agents",
+                    f"{self.agent_base_url}/agents",
                     json=request_data,
                     headers={"Accept": "text/event-stream"},
                 ) as response:
                     if response.status_code != 200:
                         error_text = await response.aread()
                         raise Exception(
-                            f"La-factoria API error: {response.status_code} - {error_text.decode()}"
+                            f"Agent API error: {response.status_code} - {error_text.decode()}"
                         )
 
                     self.console.print("[green]✓[/green] Connected to agent\n")
@@ -197,9 +200,9 @@ class AgentRunner:
             )
 
         except httpx.ConnectError:
-            self.console.print("[red]✗[/red] Failed to connect to la-factoria")
+            self.console.print("[red]✗[/red] Failed to connect to xCode agent")
             self.console.print(
-                f"[yellow]Make sure the agent API is running at {self.lf_base_url}[/yellow]"
+                f"[yellow]Make sure the agent API is running at {self.agent_base_url}[/yellow]"
             )
             self.console.print(
                 "[dim]If running via Docker Compose, start `xcode-agent` first.[/dim]"
@@ -208,7 +211,7 @@ class AgentRunner:
                 success=False,
                 task=self.config.task,
                 iterations=0,
-                error="Failed to connect to la-factoria API",
+                error="Failed to connect to agent API",
             )
         except Exception as e:
             self.console.print(f"[red]✗[/red] Error: {str(e)}")
@@ -312,7 +315,7 @@ Please complete the task now."""
                     f"[cyan]Project:[/cyan] {self.config.project_name}\n"
                     f"[cyan]Language:[/cyan] {self.config.language}\n"
                     f"[cyan]Agent:[/cyan] {self.agent_name}\n"
-                    f"[cyan]LF API:[/cyan] {self.lf_base_url}\n"
+                    f"[cyan]Agent URL:[/cyan] {self.agent_base_url}\n"
                     f"[cyan]LLM Model:[/cyan] {llm_config['model']}\n"
                     f"[cyan]Neo4j:[/cyan] {self.config.neo4j_uri}"
                 ),
@@ -339,7 +342,7 @@ Please complete the task now."""
         )
 
     def _handle_event(self, event: dict, logs: list[str]) -> None:
-        """Handle streaming event from la-factoria with rich formatting."""
+        """Handle streaming SSE event from the agent API with rich formatting."""
         event_type = event.get("type")
 
         if event_type == "session_created":

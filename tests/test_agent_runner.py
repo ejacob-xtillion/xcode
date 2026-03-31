@@ -93,8 +93,8 @@ class TestAgentRunner:
         assert error is None
 
     # Note: These tests are disabled as they test the old stub implementation
-    # The agent now uses la-factoria API which requires a running server
-    # TODO: Add integration tests with mock la-factoria server
+    # The agent path uses the HTTP API which requires a running server
+    # TODO: Add integration tests with a mock agent API (httpx/respx)
 
     # def test_run_stub_returns_success(self, test_config, mock_console):
     #     """Test that stub implementation returns success."""

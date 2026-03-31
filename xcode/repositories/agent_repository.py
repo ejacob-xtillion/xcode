@@ -1,5 +1,5 @@
 """
-Agent repository for la-factoria integration.
+HTTP/SSE client for the xCode agent API.
 """
 import json
 from typing import Optional
@@ -30,11 +30,9 @@ def _line_list_summary_label(tool: str | None) -> str | None:
     return None
 
 
-class LaFactoriaRepository(AgentRepository):
+class AgentHttpRepository(AgentRepository):
     """
-    La-factoria implementation of agent repository.
-
-    Communicates with la-factoria API to execute agent tasks via HTTP streaming.
+    Agent repository that talks to the xCode agent FastAPI service over HTTP/SSE.
     """
 
     def __init__(
@@ -45,10 +43,8 @@ class LaFactoriaRepository(AgentRepository):
         verbose: bool = False,
     ):
         """
-        Initialize the la-factoria repository.
-
         Args:
-            base_url: Base URL for la-factoria API
+            base_url: Base URL for the agent API (e.g. http://localhost:8000)
             console: Rich console for output
             agent_name: Name of the agent to use
             verbose: Whether to show verbose output
@@ -64,7 +60,7 @@ class LaFactoriaRepository(AgentRepository):
         self._token_chunks: list[str] = []
         self._stream_printed = False
         self._tool_by_call_id: dict[str, str] = {}
-        # La-factoria emits tool_call twice per invocation (model stream + on_tool_start)
+        # Agent API emits tool_call twice per invocation (model stream + on_tool_start)
         self._pending_tool_sig: str | None = None
 
     def configure_display(
@@ -122,7 +118,7 @@ class LaFactoriaRepository(AgentRepository):
         conversation_context: str = "",
     ) -> AgentResult:
         """
-        Internal method to run the agent via la-factoria API with streaming.
+        Internal method to run the agent via HTTP streaming.
 
         Args:
             task: Task to execute
@@ -156,7 +152,7 @@ class LaFactoriaRepository(AgentRepository):
         try:
             if self.verbose:
                 self.console.print(
-                    "\n[bold cyan]🤖 Connecting to la-factoria agent...[/bold cyan]"
+                    "\n[bold cyan]🤖 Connecting to xCode agent...[/bold cyan]"
                 )
 
             async with httpx.AsyncClient(timeout=httpx.Timeout(300.0)) as client:
@@ -169,7 +165,7 @@ class LaFactoriaRepository(AgentRepository):
                     if response.status_code != 200:
                         error_text = await response.aread()
                         raise Exception(
-                            f"La-factoria API error: {response.status_code} - {error_text.decode()}"
+                            f"Agent API error: {response.status_code} - {error_text.decode()}"
                         )
 
                     if self.verbose:
@@ -254,7 +250,7 @@ class LaFactoriaRepository(AgentRepository):
             )
 
         except httpx.ConnectError:
-            self.console.print("[red]✗[/red] Failed to connect to la-factoria")
+            self.console.print("[red]✗[/red] Failed to connect to xCode agent")
             self.console.print(
                 f"[yellow]Make sure the agent API is running at {self.base_url}[/yellow]"
             )
@@ -265,7 +261,7 @@ class LaFactoriaRepository(AgentRepository):
                 success=False,
                 task=task.description,
                 iterations=0,
-                error="Failed to connect to la-factoria API",
+                error="Failed to connect to agent API",
             )
         except Exception as e:
             self.console.print(f"[red]✗[/red] Error: {str(e)}")
@@ -391,7 +387,7 @@ Complete the task efficiently and accurately.
     def _ingest_tool_call_sse(self, event: dict) -> bool:
         """
         Register tool_call_id for result matching; return True if we should print/count
-        this event. La-factoria emits two tool_call events per invocation (model stream
+        this event. The agent emits two tool_call events per invocation (model stream
         + LangGraph on_tool_start) with the same tool/args.
         """
         tool = event.get("tool", "unknown")
@@ -423,7 +419,7 @@ Complete the task efficiently and accurately.
     def _handle_event(
         self, event: dict, logs: list, *, skip_tool_call_display: bool = False
     ) -> None:
-        """Handle a streaming event from la-factoria."""
+        """Handle a streaming SSE event from the agent API."""
         event_type = event.get("type")
 
         if event_type == "session_created":

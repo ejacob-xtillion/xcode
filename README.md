@@ -202,7 +202,7 @@ NEO4J_USER=neo4j
 NEO4J_PASSWORD=password
 OPENAI_API_KEY=your-key
 LLM_MODEL=gpt-4.1-mini
-LA_FACTORIA_URL=http://localhost:8000   # local CLI; compose sets this inside containers
+XCODE_AGENT_URL=http://localhost:8000   # local CLI; compose sets this inside containers
 ```
 
 ## Documentation

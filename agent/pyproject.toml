@@ -1,13 +1,13 @@
 [project]
-name = "la-factoria"
+name = "xcode-agent"
 version = "0.1.0"
-description = "FastAPI agents template with React agent pattern, streaming API, and production-ready observability"
+description = "xCode FastAPI agent service (LangGraph, MCP, SSE)"
 readme = "README.md"
 requires-python = ">=3.13"
 authors = [
-    { name = "Xtillion" }
+    { name = "xCode Team" }
 ]
-keywords = ["fastapi", "agents", "react", "ai", "llm", "postgresql", "sqlalchemy", "streaming", "api"]
+keywords = ["fastapi", "agents", "langgraph", "ai", "llm", "postgresql", "sqlalchemy", "streaming", "api", "xcode"]
 classifiers = [
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3.13",

@@ -22,7 +22,7 @@ class XCodeConfig:
     llm_endpoint: Optional[str] = None
     use_local_llm: bool = False
     verbose: bool = False
-    # Agent SSE display (la-factoria): live stream + optional recap panel
+    # Agent SSE display: live token stream + optional recap panel
     agent_stream_tokens: bool = True
     agent_trace_recap: bool = False
 

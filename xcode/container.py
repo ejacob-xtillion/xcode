@@ -10,8 +10,8 @@ from rich.console import Console
 from xcode.domain.interfaces import AgentRepository, GraphRepository
 from xcode.models import XCodeConfig
 from xcode.repositories import (
+    AgentHttpRepository,
     InMemoryCacheRepository,
-    LaFactoriaRepository,
     XGraphRepository,
 )
 from xcode.repositories.cache_repository import CacheRepository
@@ -68,10 +68,10 @@ def create_container(config: XCodeConfig, console: Console = None) -> DIContaine
     
     # Create repositories
     import os
-    la_factoria_url = os.getenv('LA_FACTORIA_URL', 'http://localhost:8000')
-    
-    agent_repo = LaFactoriaRepository(
-        base_url=la_factoria_url,
+    agent_url = os.getenv("XCODE_AGENT_URL", "http://localhost:8000")
+
+    agent_repo = AgentHttpRepository(
+        base_url=agent_url,
         console=console,
         verbose=config.verbose,
     )

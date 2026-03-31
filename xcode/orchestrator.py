@@ -12,7 +12,7 @@ from rich.console import Console
 
 from xcode.domain.models import AgentResult, Task, VerificationResult, XCodeConfig
 from xcode.formatting import VerificationFormatter
-from xcode.repositories.agent_repository import LaFactoriaRepository
+from xcode.repositories.agent_repository import AgentHttpRepository
 from xcode.repositories.graph_repository import XGraphRepository
 from xcode.schema import get_schema
 from xcode.services.agent_service import AgentService
@@ -44,8 +44,8 @@ class XCodeOrchestrator:
         )
         self.graph_service = GraphService(graph_repo, self.console)
 
-        agent_url = os.getenv("LA_FACTORIA_URL", "http://localhost:8000")
-        agent_repo = LaFactoriaRepository(
+        agent_url = os.getenv("XCODE_AGENT_URL", "http://localhost:8000")
+        agent_repo = AgentHttpRepository(
             base_url=agent_url,
             console=self.console,
             agent_name="xcode_coding_agent",

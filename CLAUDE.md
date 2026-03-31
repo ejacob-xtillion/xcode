@@ -181,7 +181,7 @@ OPENAI_API_KEY=your-key
 LLM_PROVIDER=openai
 LLM_MODEL=gpt-4.1-mini
 # Optional gateway: LLM_PROVIDER=openai_proxy, LLM_BASE_URL=http://llm-proxy:4000/v1, LLM_PROXY_AUTH_KEY, LLM_API_KEY=<same as gateway expects>
-LA_FACTORIA_URL=http://localhost:8000
+XCODE_AGENT_URL=http://localhost:8000
 DATABASE_URL=postgresql://user:pass@postgres:5432/db
 ```
 See `.env.example`. Optional: `XCODE_ENV_FILE` to point the agent at a different dotenv path.

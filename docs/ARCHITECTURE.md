@@ -133,9 +133,9 @@ The CLI follows **Clean Architecture** principles with clear separation of conce
 - File tree caching integration
 - File reading/writing/listing
 
-#### `LaFactoriaAgentRepository`
+#### `AgentHttpRepository`
 - Implements `AgentRepository` interface
-- Agent execution via la-factoria API
+- Agent execution via xCode agent HTTP/SSE API
 - Streaming support with event handling
 - Tool call tracking and display
 
@@ -190,7 +190,7 @@ CLI/Interactive
     ↓
 Services (TaskService, GraphService, AgentService)
     ↓
-Repositories (Neo4jGraphRepository, LocalFileRepository, LaFactoriaAgentRepository)
+Repositories (Neo4jGraphRepository, LocalFileRepository, AgentHttpRepository)
     ↓
 Infrastructure (Neo4jClient, LLMClient)
     ↓
@@ -273,7 +273,7 @@ xcode/
 │   ├── __init__.py
 │   ├── graph_repository.py   # Neo4j graph adapter
 │   ├── file_repository.py    # File system adapter
-│   └── agent_repository.py   # La-factoria agent adapter
+│   └── agent_repository.py   # Agent HTTP/SSE adapter
 │
 ├── infrastructure/            # Infrastructure Layer
 │   ├── __init__.py

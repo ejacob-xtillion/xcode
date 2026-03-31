@@ -129,7 +129,7 @@ docker-compose run --rm xcode xcode --path /workspace/myproject "build graph"
 
 The following environment variables are configured:
 
-- `LA_FACTORIA_URL=http://xcode-agent:8000` - Agent backend URL
+- `XCODE_AGENT_URL=http://xcode-agent:8000` - Agent backend URL
 - `NEO4J_URI=bolt://neo4j:7687` - Neo4j connection
 - `NEO4J_USER=neo4j` - Neo4j username
 - `NEO4J_PASSWORD=password` - Neo4j password

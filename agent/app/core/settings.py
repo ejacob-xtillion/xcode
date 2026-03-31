@@ -98,7 +98,7 @@ class AppSettings(BaseSettings):
 
     # OpenTelemetry Configuration
     otel_enabled: bool = Field(default=True)
-    otel_service_name: str = Field(default="la-factoria-api")
+    otel_service_name: str = Field(default="xcode-agent-api")
     otel_exporter_otlp_traces_endpoint: Optional[str] = Field(default=None)
     otel_exporter_otlp_metrics_endpoint: Optional[str] = Field(default=None)
     otel_export_console: bool = Field(default=False)

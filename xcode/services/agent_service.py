@@ -6,7 +6,7 @@ from rich.console import Console
 
 from xcode.domain.interfaces import AgentRepository
 from xcode.domain.models import AgentResult, Task, XCodeConfig
-from xcode.repositories.agent_repository import LaFactoriaRepository
+from xcode.repositories.agent_repository import AgentHttpRepository
 from xcode.repositories.cache_repository import InMemoryCacheRepository
 from xcode.services.classification_service import ClassificationService
 
@@ -70,7 +70,7 @@ class AgentService:
         llm_config['classification'] = classification
         llm_config['file_tree'] = file_tree
 
-        if isinstance(self.agent_repo, LaFactoriaRepository):
+        if isinstance(self.agent_repo, AgentHttpRepository):
             self.agent_repo.configure_display(
                 verbose=config.verbose,
                 stream_tokens=config.agent_stream_tokens,

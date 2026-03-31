@@ -71,7 +71,7 @@ services:
     networks:
       - xcode-network
 
-  # xCode Agent API (integrated from la-factoria)
+  # xCode Agent API (FastAPI + LangGraph)
   xcode-agent:
     container_name: xcode-agent
     platform: linux/amd64
@@ -137,7 +137,7 @@ services:
         required: true
     environment:
       - PYTHONUNBUFFERED=1
-      - LA_FACTORIA_URL=http://xcode-agent:8000
+      - XCODE_AGENT_URL=http://xcode-agent:8000
       - NEO4J_URI=bolt://neo4j:7687
       - NEO4J_USER=neo4j
       - NEO4J_PASSWORD=password
