@@ -1,6 +1,6 @@
 from typing import Optional, Dict, Any
 from pathlib import Path
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -61,9 +61,16 @@ class AppSettings(BaseSettings):
             "bedrock, azure, google_genai, custom"
         ),
     )
-    llm_api_key: Optional[str] = Field(default=None, description="LLM API key (not required for Bedrock)")
+    llm_api_key: Optional[str] = Field(
+        default=None,
+        description="LLM API key (not required for Bedrock)",
+        validation_alias=AliasChoices("LLM_API_KEY", "OPENAI_API_KEY"),
+    )
     llm_model: str = Field(default="gpt-4.1-mini")
-    llm_base_url: Optional[str] = Field(default=None)
+    llm_base_url: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("LLM_BASE_URL", "OPENAI_BASE_URL"),
+    )
     llm_temperature: float = Field(default=0.0)
     llm_timeout: int = Field(default=600, description="LLM API timeout in seconds (default: 10 minutes)")
     llm_max_retries: int = Field(default=3, description="Maximum number of retries for LLM API calls")

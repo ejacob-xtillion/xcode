@@ -208,8 +208,11 @@ async def create_agent_instance(
             )
         init_params["base_url"] = _openai_compatible_base_url(settings.llm_base_url)
     elif settings.llm_base_url:
-        # Optional base_url for other providers (custom endpoints)
-        init_params["base_url"] = settings.llm_base_url
+        # OpenAI-compatible custom host (e.g. LiteLLM) must use a /v1 root.
+        if llm_type == "openai":
+            init_params["base_url"] = _openai_compatible_base_url(settings.llm_base_url)
+        else:
+            init_params["base_url"] = settings.llm_base_url
 
     # Create model using init_chat_model
     # Auto-detects provider for: openai (gpt-*, o1-*, o3-*), anthropic (claude-*), 
