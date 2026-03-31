@@ -27,11 +27,7 @@ See the root directory for:
 - **[LICENSE](../LICENSE)** - MIT License
 
 See the agent directory for:
-- **[agent/README.md](../agent/README.md)** - Agent-specific documentation
-- **[agent/CUSTOM_TOOLS.md](../agent/CUSTOM_TOOLS.md)** - Custom tool development
-- **[agent/SIMPLE_AGENT.md](../agent/SIMPLE_AGENT.md)** - Simple agent pattern guide
-- **[agent/SUPERVISOR.md](../agent/SUPERVISOR.md)** - Supervisor pattern guide
-- **[agent/HITL_USAGE.md](../agent/HITL_USAGE.md)** - Human-in-the-loop guide
+- **[agent/README.md](../agent/README.md)** - Agent service setup and API usage
 
 ## Documentation Guidelines
 
