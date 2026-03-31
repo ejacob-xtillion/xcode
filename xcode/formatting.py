@@ -380,22 +380,53 @@ class ErrorFormatter(OutputFormatter):
             self.console.print_exception()
 
 
+def normalize_agent_markdown(text: str) -> str:
+    """
+    Light cleanup so model prose renders better as Rich Markdown:
+    - Turn Unicode bullet lines into '-' list items (inside fenced blocks unchanged).
+    """
+    lines = text.splitlines()
+    out: list[str] = []
+    in_fence = False
+    for line in lines:
+        stripped_left = line.lstrip()
+        if stripped_left.startswith("```"):
+            in_fence = not in_fence
+            out.append(line)
+            continue
+        if not in_fence and stripped_left.startswith(("•", "\u2022")):
+            indent = line[: len(line) - len(stripped_left)]
+            rest = stripped_left[1:].lstrip()
+            out.append(f"{indent}- {rest}")
+        else:
+            out.append(line)
+    return "\n".join(out)
+
+
 def final_answer_panel(content: str, console: Console) -> Panel:
     """
-    Build a Panel around Markdown so long agent answers wrap to the terminal
-    (capped width on wide screens for readability).
+    Build a Panel around Markdown so answers wrap (max width on wide terminals).
+    expand=False avoids stretching the border to the full console with empty padding.
     """
     term_w = console.size.width or 80
     if term_w < 1:
         term_w = 80
     panel_width = min(term_w, 102)
-    body = Markdown(content.strip(), code_theme="default")
+    md_source = normalize_agent_markdown(content.strip())
+    body = Markdown(
+        md_source,
+        code_theme="default",
+        hyperlinks=True,
+    )
     return Panel(
         body,
+        box=box.ROUNDED,
         title="[bold green]Final answer[/bold green]",
+        title_align="left",
         border_style="green",
         width=panel_width,
         padding=(1, 2),
+        expand=False,
     )
 
 

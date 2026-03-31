@@ -17,6 +17,7 @@ from xcode.formatting import (
     VerificationFormatter,
     create_formatter,
     final_answer_panel,
+    normalize_agent_markdown,
     print_final_answer,
 )
 
@@ -387,6 +388,13 @@ class TestCreateFormatter:
 
 class TestFinalAnswerFormatting:
     """Tests for agent final-answer Panel/Markdown output."""
+
+    def test_normalize_agent_markdown_unicode_bullets(self):
+        raw = "Intro\n\n• first item\n  • nested style\n\n```text\n• code\n```\n"
+        out = normalize_agent_markdown(raw)
+        assert "- first item" in out
+        assert "- nested style" in out
+        assert "• code" in out
 
     def test_final_answer_panel_narrow_terminal(self):
         # Only `console.size.width` is used; avoid relying on StringIO Console sizing.
