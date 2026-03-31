@@ -152,6 +152,24 @@ class AppSettings(BaseSettings):
             self.mcp_servers['neo4j']['env']['NEO4J_URI'] = neo4j_uri
     mcp_tool_cache_ttl_seconds: int = Field(default=1800, description="MCP tool discovery cache TTL in seconds (default: 30 minutes)")
 
+    mcp_tool_call_cache_enabled: bool = Field(
+        default=False,
+        description="Persist MCP tool call results on disk (per-server/tool/args key); skips mutating tools by default",
+    )
+    mcp_tool_call_cache_dir: Optional[str] = Field(
+        default=None,
+        description="Directory for tool call cache entries; default <repo>/.cache/mcp_tool_calls",
+    )
+    mcp_tool_call_cache_ttl_seconds: int = Field(
+        default=86400,
+        ge=0,
+        description="Drop cache files older than this many seconds; 0 = no TTL (entries kept until deleted)",
+    )
+    mcp_tool_call_cache_skip_tools: str = Field(
+        default="write_file,edit_file,run_shell_command",
+        description="Comma-separated MCP tool names never cached (mutations / side effects)",
+    )
+
     # Shell tool (custom LangChain tool — runs inside the agent process/container)
     shell_tool_enabled: bool = Field(
         default=True,

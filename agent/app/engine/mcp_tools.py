@@ -21,6 +21,7 @@ from langchain_mcp_adapters.sessions import (
 
 from app.core.settings import AppSettings, get_settings
 from app.core.logger import get_logger
+from app.engine.mcp_tool_call_cache import build_tool_call_cache_interceptors
 
 logger = get_logger()
 
@@ -300,16 +301,28 @@ class GlobalToolDiscovery:
             # Use langchain-mcp-adapters to discover and convert tools
             logger.debug("mcp_tools_discovering", server=server_name)
 
+            tool_interceptors = build_tool_call_cache_interceptors(self.settings)
+
             # For HTTP/SSE connections, create a session first
             # For stdio connections, we can pass connection directly
             transport_type = server_config.get("formOfTransport", "streamable_http")
             if transport_type in ("http", "sse"):
                 # Create session from connection for HTTP/SSE transports
                 async with create_session(connection) as session:
-                    tools = await load_mcp_tools(session=session, connection=None)
+                    tools = await load_mcp_tools(
+                        session=session,
+                        connection=None,
+                        tool_interceptors=tool_interceptors,
+                        server_name=server_name,
+                    )
             else:
                 # For stdio, pass connection directly
-                tools = await load_mcp_tools(session=None, connection=connection)
+                tools = await load_mcp_tools(
+                    session=None,
+                    connection=connection,
+                    tool_interceptors=tool_interceptors,
+                    server_name=server_name,
+                )
 
             # Cache the results
             self._cache[server_name] = (datetime.now(), tools)

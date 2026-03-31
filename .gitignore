@@ -58,6 +58,9 @@ logs/
 # Neo4j
 neo4j/
 
+# Agent MCP tool call cache (optional; MCP_TOOL_CALL_CACHE_ENABLED)
+.cache/
+
 # Temporary files
 *.tmp
 *.bak
