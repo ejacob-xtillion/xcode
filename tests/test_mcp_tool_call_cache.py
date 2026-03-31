@@ -3,6 +3,7 @@ from pathlib import Path
 
 from agent.app.engine.mcp_tool_call_cache import (
     DiskMcpToolCallCacheInterceptor,
+    normalize_tool_args_for_cache_key,
     tool_call_cache_fingerprint,
 )
 from agent.app.core.settings import AppSettings
@@ -16,11 +17,32 @@ def test_tool_call_cache_fingerprint_stable_ordering():
     assert a == b
 
 
-def test_app_settings_tool_call_cache_defaults():
-    s = AppSettings()
-    assert s.mcp_tool_call_cache_enabled is False
-    assert s.mcp_tool_call_cache_ttl_seconds == 86400
-    assert "write_file" in s.mcp_tool_call_cache_skip_tools
+def test_read_neo4j_cypher_fingerprint_ignores_extra_whitespace():
+    a = tool_call_cache_fingerprint(
+        "neo4j",
+        "read_neo4j_cypher",
+        {"query": "MATCH (n) RETURN n\nLIMIT 5"},
+    )
+    b = tool_call_cache_fingerprint(
+        "neo4j",
+        "read_neo4j_cypher",
+        {"query": "MATCH  (n)\n   RETURN   n  LIMIT 5"},
+    )
+    assert a == b
+
+
+def test_normalize_tool_args_neo4j_known_keys():
+    raw = {"query": "  MATCH (x)\nRETURN x  "}
+    out = normalize_tool_args_for_cache_key("read_neo4j_cypher", raw)
+    assert out["query"] == "MATCH (x) RETURN x"
+
+
+def test_app_settings_mcp_tool_call_cache_model_defaults():
+    """Schema defaults (runtime .env / OS env can override)."""
+    assert AppSettings.model_fields["mcp_tool_call_cache_enabled"].default is False
+    assert AppSettings.model_fields["mcp_tool_call_cache_ttl_seconds"].default == 86400
+    skip = AppSettings.model_fields["mcp_tool_call_cache_skip_tools"].default
+    assert isinstance(skip, str) and "write_file" in skip
 
 
 def test_cache_hit_skips_handler(tmp_path: Path) -> None:

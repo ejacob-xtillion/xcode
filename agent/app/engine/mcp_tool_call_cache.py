@@ -16,15 +16,43 @@ from langchain_mcp_adapters.interceptors import MCPToolCallRequest, MCPToolCallR
 from mcp.types import CallToolResult
 
 from app.core.logger import get_logger
-from app.core.settings import AppSettings, _xcode_repo_root
+from app.core.settings import AppSettings
 
 logger = get_logger()
 
 _write_lock = asyncio.Lock()
 
 
+def _agent_project_root() -> Path:
+    """Directory that contains the agent's pyproject.toml (e.g. /app in Docker, repo/agent locally).
+
+    ``settings._xcode_repo_root()`` walks parents[3] from ``app/core/settings.py``, which resolves
+    to filesystem ``/`` when the app lives at ``/app/app/core/...`` — wrong for on-disk cache.
+    """
+    cur = Path(__file__).resolve().parent
+    for _ in range(12):
+        if (cur / "pyproject.toml").is_file():
+            return cur
+        parent = cur.parent
+        if parent == cur:
+            break
+        cur = parent
+    return Path(__file__).resolve().parents[2]
+
+
 def _default_cache_dir() -> Path:
-    return _xcode_repo_root() / ".cache" / "mcp_tool_calls"
+    return _agent_project_root() / ".cache" / "mcp_tool_calls"
+
+
+def normalize_tool_args_for_cache_key(tool_name: str, args: dict[str, Any]) -> dict[str, Any]:
+    """Copy of tool args normalized so equivalent invocations share one cache key."""
+    out = dict(args)
+    if tool_name == "read_neo4j_cypher":
+        for key in ("query", "cypher", "statement", "cypherQuery"):
+            val = out.get(key)
+            if isinstance(val, str):
+                out[key] = " ".join(val.strip().split())
+    return out
 
 
 def _cache_key_path(cache_dir: Path, key_hex: str) -> Path:
@@ -32,7 +60,10 @@ def _cache_key_path(cache_dir: Path, key_hex: str) -> Path:
 
 
 def tool_call_cache_fingerprint(server_name: str, tool_name: str, args: dict[str, Any]) -> str:
-    payload = json.dumps({"server": server_name, "tool": tool_name, "args": args}, sort_keys=True, default=str)
+    key_args = normalize_tool_args_for_cache_key(tool_name, args)
+    payload = json.dumps(
+        {"server": server_name, "tool": tool_name, "args": key_args}, sort_keys=True, default=str
+    )
     return sha256(payload.encode("utf-8")).hexdigest()
 
 
@@ -78,7 +109,7 @@ class DiskMcpToolCallCacheInterceptor:
 
         hit = await asyncio.to_thread(self._try_read, path)
         if hit is not None:
-            logger.debug(
+            logger.info(
                 "mcp_tool_call_cache_hit",
                 server=request.server_name,
                 tool=request.name,
@@ -91,7 +122,7 @@ class DiskMcpToolCallCacheInterceptor:
         if isinstance(result, CallToolResult) and not result.isError:
             async with _write_lock:
                 await asyncio.to_thread(self._write_atomic, path, result)
-            logger.debug(
+            logger.info(
                 "mcp_tool_call_cache_store",
                 server=request.server_name,
                 tool=request.name,
@@ -154,5 +185,6 @@ def build_tool_call_cache_interceptors(settings: AppSettings) -> list[DiskMcpToo
 __all__ = [
     "DiskMcpToolCallCacheInterceptor",
     "build_tool_call_cache_interceptors",
+    "normalize_tool_args_for_cache_key",
     "tool_call_cache_fingerprint",
 ]
