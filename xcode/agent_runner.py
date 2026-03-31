@@ -16,6 +16,7 @@ from rich.tree import Tree
 
 from xcode.domain.models import TaskClassification, TaskType, XCodeConfig
 from xcode.file_cache import get_cache_manager
+from xcode.formatting import print_final_answer
 from xcode.result import XCodeResult
 from xcode.schema import get_schema
 from xcode.task_classifier import TaskClassifier
@@ -464,13 +465,8 @@ Please complete the task now."""
 
         elif event_type == "answer":
             content = event.get("content", "")
-            if self.quiet_mode:
-                # Clean output: just show the response
-                self.console.print(f"\n{content}")
-            else:
-                # Verbose: show with header
-                self.console.print("\n[bold green]✓ Agent Response:[/bold green]")
-                self.console.print(f"{content}")
+            if content:
+                print_final_answer(self.console, content)
             logs.append(f"Answer: {content}")
 
         elif event_type == "error":

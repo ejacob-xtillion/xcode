@@ -10,6 +10,7 @@ from rich.panel import Panel
 from rich.text import Text
 
 from xcode.domain.interfaces import AgentRepository
+from xcode.formatting import print_final_answer
 from xcode.models import Task, TaskClassification, AgentResult, FileTreeCache, TaskType
 
 # Tools whose successful output is reasonably summarized as one record per non-empty line.
@@ -502,9 +503,7 @@ Complete the task efficiently and accurately.
                     self.console.print()
                     self._stream_printed = False
                 self._append_trace_line(logs, "answer", f"{len(content)} chars")
-                self.console.print(f"\n[bold green]━━━ Final answer ━━━[/bold green]")
-                self.console.print(f"{content}")
-                self.console.print(f"[bold green]━━━━━━━━━━━━━━━━━━━━━━[/bold green]\n")
+                print_final_answer(self.console, content)
 
         elif event_type == "error":
             content = event.get("content", "")

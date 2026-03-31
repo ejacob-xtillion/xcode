@@ -4,6 +4,7 @@ Tests for the formatting module.
 
 from io import StringIO
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from rich.console import Console
@@ -15,6 +16,8 @@ from xcode.formatting import (
     TaskFormatter,
     VerificationFormatter,
     create_formatter,
+    final_answer_panel,
+    print_final_answer,
 )
 
 
@@ -380,3 +383,32 @@ class TestCreateFormatter:
         """Test creating unknown formatter returns default."""
         formatter = create_formatter(console, "unknown")
         assert isinstance(formatter, OutputFormatter)
+
+
+class TestFinalAnswerFormatting:
+    """Tests for agent final-answer Panel/Markdown output."""
+
+    def test_final_answer_panel_narrow_terminal(self):
+        # Only `console.size.width` is used; avoid relying on StringIO Console sizing.
+        c = SimpleNamespace(size=SimpleNamespace(width=60))
+        p = final_answer_panel("Line one\n\nLine **two**", c)
+        assert p.width == 60
+
+    def test_final_answer_panel_wide_terminal_capped(self):
+        c = SimpleNamespace(size=SimpleNamespace(width=200))
+        p = final_answer_panel("Hi", c)
+        assert p.width == 102
+
+    def test_print_final_answer_renders_markdown(self):
+        buf = StringIO()
+        c = Console(file=buf, force_terminal=True, width=80)
+        print_final_answer(c, "# Title\n\nSome **bold** text.")
+        out = buf.getvalue()
+        assert "Title" in out
+        assert "bold" in out
+
+    def test_print_final_answer_whitespace_only_is_silent(self):
+        buf = StringIO()
+        c = Console(file=buf, force_terminal=True, width=80)
+        print_final_answer(c, "   \n  ")
+        assert buf.getvalue() == ""

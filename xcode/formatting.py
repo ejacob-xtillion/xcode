@@ -380,6 +380,34 @@ class ErrorFormatter(OutputFormatter):
             self.console.print_exception()
 
 
+def final_answer_panel(content: str, console: Console) -> Panel:
+    """
+    Build a Panel around Markdown so long agent answers wrap to the terminal
+    (capped width on wide screens for readability).
+    """
+    term_w = console.size.width or 80
+    if term_w < 1:
+        term_w = 80
+    panel_width = min(term_w, 102)
+    body = Markdown(content.strip(), code_theme="default")
+    return Panel(
+        body,
+        title="[bold green]Final answer[/bold green]",
+        border_style="green",
+        width=panel_width,
+        padding=(1, 2),
+    )
+
+
+def print_final_answer(console: Console, content: str) -> None:
+    """Print an agent final answer with Markdown rendering and bounded width."""
+    if not content or not content.strip():
+        return
+    console.print()
+    console.print(final_answer_panel(content, console))
+    console.print()
+
+
 # Convenience function for creating formatters
 def create_formatter(
     console: Console, formatter_type: str = "default"
