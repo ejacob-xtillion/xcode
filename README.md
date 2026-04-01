@@ -13,21 +13,29 @@ xCode is an intelligent coding assistant that combines Neo4j knowledge graphs wi
 - **Smart Test Discovery**: Uses Neo4j to find related tests and untested code
 - **Auto-Fix Retry**: Agent automatically fixes test failures (configurable attempts)
 - **Rich CLI**: Beautiful terminal UI with progress indicators
+- **Disk-backed MCP Cache**: Tool call results cached on disk for faster repeated queries
+- **Concise Agent Responses**: Informational answers are short and focused by default
 - **Clean Architecture**: Modular design with clear separation of concerns
+
+## Prerequisites
+
+- [Docker](https://docs.docker.com/get-docker/) and Docker Compose
+- An OpenAI API key (or compatible LLM endpoint — see [Local LLM](#local-llm-ollama))
+- Git
 
 ## Quick Start
 
 ### Docker (Recommended)
 
 ```bash
-# Configure (single root file for CLI + agent)
+# 1. Configure environment
 cp .env.example .env
-# Edit .env and set OPENAI_API_KEY (and any other keys you need)
+# Edit .env: set OPENAI_API_KEY and any other values
 
-# Start all services
+# 2. Start all services
 docker-compose up -d
 
-# Run xCode interactively
+# 3. Run xCode interactively
 docker-compose exec xcode xcode -i
 
 # Or run a single task
@@ -37,7 +45,7 @@ docker-compose exec xcode xcode "add type hints to all functions"
 ### Local Development
 
 ```bash
-# Start backend services
+# Start backend services only
 docker-compose up -d neo4j postgres xcode-agent
 
 # Install CLI locally
@@ -66,7 +74,7 @@ Options:
   --help                   Show this message and exit
 ```
 
-### Verification Loop
+## Verification Loop
 
 By default, xCode automatically verifies changes after the agent completes a task:
 
@@ -74,7 +82,7 @@ By default, xCode automatically verifies changes after the agent completes a tas
 2. **Coverage Check**: Identifies untested callables in modified files
 3. **Test Generation**: Automatically generates tests for untested code
 4. **Verification**: Runs pytest and linters
-5. **Auto-Fix**: If tests fail, agent gets 2 attempts to fix issues
+5. **Auto-Fix**: If tests fail, agent gets up to 2 attempts to fix issues
 
 Disable with `--no-verify` or `--no-test-generation` flags.
 
@@ -108,20 +116,20 @@ graph TB
     subgraph "User Interface"
         CLI[CLI / Interactive Mode]
     end
-    
+
     subgraph "CLI Layer (xcode/)"
         CLI --> Orchestrator[Orchestrator]
         Orchestrator --> Services[Services Layer]
         Services --> GraphSvc[Graph Service]
         Services --> AgentSvc[Agent Service]
         Services --> VerifySvc[Verification Service]
-        
+
         GraphSvc --> GraphRepo[Graph Repository]
         AgentSvc --> AgentRepo[Agent Repository]
         VerifySvc --> TestDiscovery[Test Discovery]
         VerifySvc --> TestGen[Test Generation]
     end
-    
+
     subgraph "Agent Layer (agent/)"
         AgentRepo -->|HTTP/SSE| AgentAPI[Agent API]
         AgentAPI --> LangGraph[LangGraph Agent]
@@ -129,14 +137,14 @@ graph TB
         MCPTools --> Neo4jTool[Neo4j Tool]
         MCPTools --> FSTool[Filesystem Tool]
     end
-    
+
     subgraph "Data Layer"
         GraphRepo -->|Cypher| Neo4j[(Neo4j<br/>Knowledge Graph)]
         Neo4jTool -->|Query| Neo4j
         FSTool -->|Read/Write| Files[Codebase Files]
         TestDiscovery -->|Query| Neo4j
     end
-    
+
     style CLI fill:#4A90E2,stroke:#2E5C8A,color:#fff
     style LangGraph fill:#50C878,stroke:#2E7D4E,color:#fff
     style Neo4j fill:#008CC1,stroke:#005A7D,color:#fff
@@ -154,9 +162,9 @@ graph TB
 
 ## Local LLM (Ollama)
 
-- **Knowledge graph (`xgraph`)**: `xcode --local` (or `XCODE_LLM_ENDPOINT`) normalizes Ollama to an OpenAI-compatible base URL (`http://localhost:11434/v1`) and sets `OPENAI_*` for xgraph while the graph builds. Start Ollama and pull a model (e.g. `ollama pull llama3.2`).
-- **Coding agent**: Uses the same **repository root** `.env` as Compose (`LLM_PROVIDER`, `LLM_BASE_URL`, `LLM_MODEL`, `OPENAI_API_KEY`, etc.). For a local OpenAI-compatible server, point `LLM_BASE_URL` at its `/v1` URL and set `LLM_API_KEY` as that server requires.
-- **OpenAI-compatible gateway**: `docker compose --profile llm-proxy up -d` runs an optional proxy (default image: LiteLLM; replace with another vendor such as an enterprise gateway). Set `LLM_PROVIDER=openai_proxy`, `LLM_BASE_URL=http://llm-proxy:4000/v1` (or `http://localhost:4000/v1` from the host), `LLM_PROXY_AUTH_KEY`, and `LLM_API_KEY` to the same value the gateway expects for client auth. See `docs/DOCKER.md` and `llm-proxy/config.yaml`.
+- **Knowledge graph (`xgraph`)**: `xcode --local` (or `XCODE_LLM_ENDPOINT`) normalizes Ollama to an OpenAI-compatible base URL (`http://localhost:11434/v1`). Start Ollama and pull a model first (e.g. `ollama pull llama3.2`).
+- **Coding agent**: Uses the root `.env` (`LLM_PROVIDER`, `LLM_BASE_URL`, `LLM_MODEL`, `OPENAI_API_KEY`). For a local server, point `LLM_BASE_URL` at its `/v1` endpoint.
+- **OpenAI-compatible gateway**: `docker compose --profile llm-proxy up -d` runs an optional LiteLLM proxy. Set `LLM_PROVIDER=openai_proxy`, `LLM_BASE_URL=http://llm-proxy:4000/v1`, `LLM_PROXY_AUTH_KEY`, and `LLM_API_KEY`. See `docs/DOCKER.md` and `llm-proxy/config.yaml`.
 
 ## Neo4j Knowledge Graph
 
@@ -194,7 +202,7 @@ mypy xcode
 
 ## Environment Variables
 
-Use **one** file at the repo root: `.env` (see `.env.example`). Docker Compose loads it for the CLI and agent; the agent process also reads `<repo>/.env` directly. Override the path with `XCODE_ENV_FILE` if needed.
+Use **one** `.env` file at the repo root (see `.env.example`). Docker Compose loads it for all services; override the path with `XCODE_ENV_FILE` if needed.
 
 ```bash
 NEO4J_URI=bolt://localhost:7687
@@ -202,22 +210,20 @@ NEO4J_USER=neo4j
 NEO4J_PASSWORD=password
 OPENAI_API_KEY=your-key
 LLM_MODEL=gpt-4.1-mini
-XCODE_AGENT_URL=http://localhost:8000   # local CLI; compose sets this inside containers
+XCODE_AGENT_URL=http://localhost:8000   # local CLI; Compose sets this inside containers
 ```
 
 ## Documentation
 
-- [CLAUDE.md](CLAUDE.md) - Project guide for AI assistants
-- [CONTRIBUTING.md](CONTRIBUTING.md) - Development guidelines
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - Clean architecture details
-- [docs/DOCKER.md](docs/DOCKER.md) - Docker setup instructions
-- [agent/README.md](agent/README.md) - Agent documentation
-
-### Additional Documentation
-
-- [docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) - Improvement suggestions
-- [docs/LATENCY_ANALYSIS.md](docs/LATENCY_ANALYSIS.md) - Performance analysis
-- [docs/REGRESSION_TEST_REPORT.md](docs/REGRESSION_TEST_REPORT.md) - Test reports
+| File | Description |
+|------|-------------|
+| [CLAUDE.md](CLAUDE.md) | Project guide for AI assistants |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Development guidelines |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Clean architecture details |
+| [docs/DOCKER.md](docs/DOCKER.md) | Docker setup and troubleshooting |
+| [docs/LATENCY_ANALYSIS.md](docs/LATENCY_ANALYSIS.md) | Performance analysis |
+| [docs/REGRESSION_TEST_REPORT.md](docs/REGRESSION_TEST_REPORT.md) | Test reports |
+| [agent/README.md](agent/README.md) | Agent-specific documentation |
 
 ## License
 
