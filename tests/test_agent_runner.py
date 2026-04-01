@@ -2,7 +2,7 @@
 Tests for agent_runner module
 """
 
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 from rich.console import Console
@@ -41,12 +41,35 @@ class TestAgentRunner:
         assert runner.current_iteration == 0
 
     def test_run_returns_result(self, test_config, mock_console):
-        """Test that run() returns an XCodeResult."""
-        runner = AgentRunner(test_config, mock_console)
-        result = runner.run()
+        """Test that run() returns an XCodeResult (HTTP layer mocked; no real agent)."""
+
+        async def fake_sse_lines():
+            yield 'data: {"type": "session_created", "session_id": "t1"}'
+            yield (
+                'data: {"type": "complete", "status": "completed", '
+                '"session_id": "t1", "execution_time_ms": 0}'
+            )
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.aiter_lines = lambda: fake_sse_lines()
+
+        stream_cm = MagicMock()
+        stream_cm.__aenter__ = AsyncMock(return_value=mock_response)
+        stream_cm.__aexit__ = AsyncMock(return_value=None)
+
+        mock_client = MagicMock()
+        mock_client.stream = MagicMock(return_value=stream_cm)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+
+        with patch("xcode.agent_runner.httpx.AsyncClient", return_value=mock_client):
+            runner = AgentRunner(test_config, mock_console)
+            result = runner.run()
 
         assert isinstance(result, XCodeResult)
         assert result.task == test_config.task
+        assert result.success is True
 
     def test_get_agent_context(self, test_config, mock_console):
         """Test agent context generation."""
