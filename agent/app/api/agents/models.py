@@ -100,6 +100,21 @@ class ToolResultEvent(BaseModel):
     timestamp: str = Field(..., description="ISO 8601 timestamp of the event")
 
 
+class ToolOutputChunkEvent(BaseModel):
+    role: Literal["tool"] = "tool"
+    type: Literal["tool_output_chunk"] = "tool_output_chunk"
+    tool_call_id: str = Field(
+        default="",
+        description="Correlates with tool_call when known (shell streaming)",
+    )
+    stream: Literal["stdout", "stderr"] = Field(
+        default="stdout",
+        description="Which stream this line or chunk came from",
+    )
+    content: str = Field(..., description="Line or chunk of subprocess output")
+    timestamp: str = Field(..., description="ISO 8601 timestamp of the event")
+
+
 class ReasoningEvent(BaseModel):
     role: Literal["assistant"] = "assistant"
     type: Literal["reasoning"] = "reasoning"
@@ -184,6 +199,7 @@ StreamEvent = Union[
     TokenEvent,
     ToolCallEvent,
     ToolResultEvent,
+    ToolOutputChunkEvent,
     AnswerEvent,
     ErrorEvent,
     InterruptEvent,
@@ -198,6 +214,7 @@ AgentEvent = Union[
     TokenEvent,
     ToolCallEvent,
     ToolResultEvent,
+    ToolOutputChunkEvent,
     AnswerEvent,
     ErrorEvent,
     InterruptEvent,

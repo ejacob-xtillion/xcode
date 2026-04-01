@@ -391,6 +391,13 @@ Please complete the task now."""
 
             logs.append(f"Tool call #{self.tool_call_counter}: {tool}")
 
+        elif event_type == "tool_output_chunk":
+            content = event.get("content", "")
+            stream = event.get("stream", "stdout")
+            if content:
+                style = "yellow" if stream == "stderr" else "dim"
+                self.console.print(content, end="", style=style, markup=False)
+
         elif event_type == "tool_result":
             content = event.get("content", "")
             tool_call_id = event.get("tool_call_id", "")

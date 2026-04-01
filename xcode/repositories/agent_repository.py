@@ -2,6 +2,7 @@
 HTTP/SSE client for the xCode agent API.
 """
 import json
+import time
 from typing import Optional
 
 import httpx
@@ -63,6 +64,12 @@ class AgentHttpRepository(AgentRepository):
         self._tool_by_call_id: dict[str, str] = {}
         # Agent API emits tool_call twice per invocation (model stream + on_tool_start)
         self._pending_tool_sig: str | None = None
+        self._tool_status: object | None = None
+        self._tool_depth = 0
+        self._tool_started_monotonic: float | None = None
+        self._shell_stream_active = False
+        self._idle_status: object | None = None
+        self._answer_shown = False
 
     def configure_display(
         self,
@@ -149,12 +156,19 @@ class AgentHttpRepository(AgentRepository):
         self._stream_printed = False
         self._tool_by_call_id.clear()
         self._pending_tool_sig = None
+        self._reset_tool_ui_state()
 
+        connect_status = None
         try:
             if self.verbose:
                 self.console.print(
                     "\n[bold cyan]🤖 Connecting to xCode agent...[/bold cyan]"
                 )
+            else:
+                connect_status = self.console.status(
+                    "Connecting to agent...", spinner="dots"
+                )
+                connect_status.start()
 
             async with httpx.AsyncClient(timeout=httpx.Timeout(300.0)) as client:
                 async with client.stream(
@@ -163,6 +177,10 @@ class AgentHttpRepository(AgentRepository):
                     json=request_data,
                     headers={"Accept": "text/event-stream"},
                 ) as response:
+                    if connect_status is not None:
+                        connect_status.stop()
+                        connect_status = None
+
                     if response.status_code != 200:
                         error_text = await response.aread()
                         raise Exception(
@@ -174,6 +192,8 @@ class AgentHttpRepository(AgentRepository):
                         self.console.print(
                             "[bold magenta]━━ Agent trace (chronological) ━━[/bold magenta]"
                         )
+                    else:
+                        self._start_idle_status()
 
                     async for line in response.aiter_lines():
                         if line.startswith("data: "):
@@ -272,6 +292,9 @@ class AgentHttpRepository(AgentRepository):
                 iterations=0,
                 error=str(e),
             )
+        finally:
+            if connect_status is not None:
+                connect_status.stop()
 
     def _build_agent_query(
         self,
@@ -385,6 +408,78 @@ Complete the task efficiently and accurately.
             normalized = repr(args)
         return f"{tool}\0{normalized}"
 
+    def _reset_tool_ui_state(self) -> None:
+        self._stop_idle_status()
+        self._answer_shown = False
+        if self._tool_status is not None:
+            try:
+                self._tool_status.stop()
+            except Exception:
+                pass
+            self._tool_status = None
+        self._tool_depth = 0
+        self._tool_started_monotonic = None
+        self._shell_stream_active = False
+
+    def _stop_idle_status(self) -> None:
+        if self._idle_status is not None:
+            try:
+                self._idle_status.stop()
+            except Exception:
+                pass
+            self._idle_status = None
+
+    def _start_idle_status(self) -> None:
+        """Spinner while waiting for the next SSE event or final answer (non-verbose only)."""
+        if self.verbose or self._answer_shown:
+            return
+        if self._tool_depth > 0:
+            return
+        if self._shell_stream_active:
+            return
+        if self._idle_status is not None:
+            return
+        self._idle_status = self.console.status(
+            "Working with agent…", spinner="dots"
+        )
+        self._idle_status.start()
+
+    def _start_tool_status(self, label: str) -> None:
+        if self.verbose:
+            return
+        self._stop_idle_status()
+        if self._tool_depth == 0:
+            self._tool_status = self.console.status(label, spinner="dots")
+            self._tool_status.start()
+            self._tool_started_monotonic = time.monotonic()
+        self._tool_depth += 1
+
+    def _stop_tool_status(self) -> None:
+        if self._tool_depth <= 0:
+            return
+        self._tool_depth -= 1
+        if self._tool_depth > 0:
+            return
+        if self._tool_status is not None:
+            try:
+                self._tool_status.stop()
+            except Exception:
+                pass
+            self._tool_status = None
+        if self._tool_started_monotonic is not None:
+            elapsed = time.monotonic() - self._tool_started_monotonic
+            self.console.print(f"  [dim]({elapsed:.1f}s)[/dim]")
+        self._tool_started_monotonic = None
+
+    def _pause_tool_status_for_stream(self) -> None:
+        if self._tool_status is not None:
+            try:
+                self._tool_status.stop()
+            except Exception:
+                pass
+            self._tool_status = None
+            self._shell_stream_active = True
+
     def _ingest_tool_call_sse(self, event: dict) -> bool:
         """
         Register tool_call_id for result matching; return True if we should print/count
@@ -438,6 +533,7 @@ Complete the task efficiently and accurately.
             # Show agent's reasoning/thinking process
             content = event.get("content", "")
             if content:
+                self._stop_idle_status()
                 preview = self._truncate(content.replace("\n", " "), 160)
                 self._append_trace_line(logs, "reasoning", preview)
                 self.console.print(
@@ -449,6 +545,7 @@ Complete the task efficiently and accurately.
             content = event.get("content", "")
             if not content:
                 return
+            self._stop_idle_status()
             self._token_chunks.append(content)
             if self.stream_tokens:
                 self.console.print(content, end="", style="dim")
@@ -471,8 +568,22 @@ Complete the task efficiently and accurately.
             if self.verbose and args:
                 args_str = json.dumps(args, indent=2)
                 self.console.print(f"[dim]{args_str}[/dim]")
+            self._start_tool_status(f"{tool}: {self._truncate(tool_display, 60)}")
+
+        elif event_type == "tool_output_chunk":
+            content = event.get("content", "")
+            stream = event.get("stream", "stdout")
+            if not content:
+                return
+            self._pause_tool_status_for_stream()
+            style = "yellow" if stream == "stderr" else "dim"
+            self.console.print(content, end="", style=style, markup=False)
 
         elif event_type == "tool_result":
+            if self._shell_stream_active:
+                self.console.print()
+                self._shell_stream_active = False
+            self._stop_tool_status()
             self._pending_tool_sig = None
             is_error = event.get("is_error", False)
             content = event.get("content", "")
@@ -494,10 +605,13 @@ Complete the task efficiently and accurately.
                 if self.verbose and content:
                     content_str = self._truncate(str(content), 500)
                     self.console.print(f"  [dim]{content_str}[/dim]")
+            self._start_idle_status()
 
         elif event_type == "answer":
             content = event.get("content", "")
             if content:
+                self._stop_idle_status()
+                self._answer_shown = True
                 self._flush_token_buffer(logs)
                 if self._stream_printed:
                     self.console.print()
@@ -507,16 +621,20 @@ Complete the task efficiently and accurately.
 
         elif event_type == "error":
             content = event.get("content", "")
+            self._stop_idle_status()
+            self._answer_shown = True
             self.console.print(f"[red]✗ Error:[/red] {content}")
             logs.append(f"Error: {content}")
 
         elif event_type == "interrupt":
             prompt = event.get("prompt", "")
+            self._stop_idle_status()
             self.console.print(f"[yellow]⚠ Interrupt:[/yellow] {prompt}")
             logs.append(f"Interrupt: {prompt}")
 
         elif event_type == "complete":
             status = event.get("status", "unknown")
+            self._stop_idle_status()
             self._flush_token_buffer(logs)
             self._append_trace_line(logs, "complete", status)
             if self.verbose:
@@ -566,6 +684,25 @@ Complete the task efficiently and accurately.
         else:
             return f"{tool}"
 
+    @staticmethod
+    def _shell_like_summary(content_str: str) -> str | None:
+        """Pick a pytest-style tail or exit_code line for shell tool output."""
+        lines = [ln.strip() for ln in content_str.splitlines() if ln.strip()]
+        for cand in reversed(lines[-24:]):
+            lower = cand.lower()
+            if "passed" in lower or "failed" in lower or "error" in lower:
+                if (
+                    "=" in cand
+                    or " passed" in lower
+                    or " failed" in lower
+                    or " error" in lower
+                ):
+                    return cand[:220]
+        for cand in reversed(lines[-8:]):
+            if cand.startswith("exit_code="):
+                return cand[:220]
+        return None
+
     def _summarize_tool_result(
         self, content: str, tool: str | None = None
     ) -> str:
@@ -574,6 +711,12 @@ Complete the task efficiently and accurately.
             return "Done"
 
         content_str = str(content)
+
+        leaf = (tool or "").split(".")[-1]
+        if leaf in ("run_shell_command", "run_shell", "execute_command"):
+            shell_sum = self._shell_like_summary(content_str)
+            if shell_sum:
+                return shell_sum
 
         # Count items if it looks like a list/array result
         if content_str.startswith("[") and content_str.endswith("]"):

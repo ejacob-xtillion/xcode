@@ -213,6 +213,22 @@ class AppSettings(BaseSettings):
         le=1800,
         description="Timeout for automatic requirements.txt install or uv sync",
     )
+    shell_stream_output_to_client: bool = Field(
+        default=True,
+        description="Stream run_shell_command stdout/stderr lines to SSE as tool_output_chunk events",
+    )
+    shell_stream_queue_max_chunks: int = Field(
+        default=2000,
+        ge=0,
+        le=50_000,
+        description="Max queued stream chunks per graph run; 0 disables streaming",
+    )
+    shell_stream_max_chunk_bytes: int = Field(
+        default=8192,
+        ge=256,
+        le=65_536,
+        description="Split longer lines when enqueueing shell stream chunks",
+    )
 
     # Tool Retry Configuration
     tool_retry_enabled: bool = Field(

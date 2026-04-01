@@ -87,6 +87,34 @@ def test_run_shell_command_impl_echo(tmp_path):
     assert "$ echo hello" in out or "echo hello" in out
 
 
+def test_run_shell_command_impl_stream_queue(tmp_path):
+    import queue
+
+    root = tmp_path / "r"
+    root.mkdir()
+    q: queue.Queue = queue.Queue()
+    out = run_shell_command_impl(
+        "echo line1 && echo line2",
+        str(root),
+        allowed_roots=[str(root)],
+        timeout=10,
+        max_output_bytes=4096,
+        stream_queue=q,
+        stream_max_chunk_bytes=8192,
+    )
+    items = []
+    while True:
+        try:
+            items.append(q.get_nowait())
+        except queue.Empty:
+            break
+    stdout_chunks = [text for name, text in items if name == "stdout"]
+    joined = "".join(stdout_chunks)
+    assert "line1" in joined
+    assert "line2" in joined
+    assert "line1" in out and "line2" in out
+
+
 def test_run_shell_command_impl_timeout(tmp_path):
     root = tmp_path / "r"
     root.mkdir()

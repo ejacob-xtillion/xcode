@@ -1,6 +1,11 @@
 from typing import AsyncGenerator, Dict, List, Optional
 from datetime import datetime, timezone
 import uuid
+
+from app.api.agents.shell_stream_multiplex import (
+    iter_graph_events,
+    multiplex_astream_with_shell_queue,
+)
 from langchain.messages import HumanMessage, AIMessage
 from langgraph.types import Command
 from langchain_core.tools import BaseTool
@@ -17,6 +22,7 @@ from app.api.agents.models import (
     TokenEvent,
     ToolCallEvent,
     ToolResultEvent,
+    ToolOutputChunkEvent,
     AnswerEvent,
     ErrorEvent,
     CompleteEvent,
@@ -342,36 +348,57 @@ class AgentService:
             agent_session = await self.repository.get_agent_session_by_id(db_session, agent_session_id)
             query = agent_session.query
 
-        try:
-            async for raw_event in agent.astream_events(input_data, config=config):
-                typed_events = processor.process_event(raw_event)
+        settings = get_settings()
+        thread_id = config.get("configurable", {}).get("thread_id")
+        shell_q = None
+        if (
+            thread_id
+            and settings.shell_stream_output_to_client
+            and settings.shell_stream_queue_max_chunks > 0
+        ):
+            from app.engine.xcode_coding_agent.shell_stream_registry import (
+                register_shell_stream_queue,
+            )
 
-                for event in typed_events:
-                    if isinstance(event, InterruptEvent):
-                        final_status = "interrupted"
-                    elif isinstance(event, ErrorEvent):
-                        final_status = "failed"
-                    elif isinstance(event, AnswerEvent):
-                        # Extract final result from answer events
-                        if final_result is None:
-                            final_result = event.content
-                        all_messages.append(event)
-                    elif isinstance(event, TokenEvent):
-                        # Collect token events as messages
-                        all_messages.append(event)
-                    elif isinstance(event, ToolCallEvent):
-                        # Collect tool call events
-                        all_messages.append(event)
-                        all_tool_calls.append(ToolCallRecord(
+            shell_q = register_shell_stream_queue(
+                str(thread_id), settings.shell_stream_queue_max_chunks
+            )
+
+        try:
+            event_source = (
+                multiplex_astream_with_shell_queue(
+                    agent, input_data, config, shell_q, processor
+                )
+                if shell_q is not None
+                else iter_graph_events(agent, input_data, config, processor)
+            )
+
+            async for event in event_source:
+                if isinstance(event, InterruptEvent):
+                    final_status = "interrupted"
+                elif isinstance(event, ErrorEvent):
+                    final_status = "failed"
+                elif isinstance(event, AnswerEvent):
+                    if final_result is None:
+                        final_result = event.content
+                    all_messages.append(event)
+                elif isinstance(event, TokenEvent):
+                    all_messages.append(event)
+                elif isinstance(event, ToolCallEvent):
+                    all_messages.append(event)
+                    all_tool_calls.append(
+                        ToolCallRecord(
                             tool_name=event.tool,
                             params=str(event.args),
-                            timestamp=event.timestamp
-                        ))
-                    elif isinstance(event, ToolResultEvent):
-                        # Collect tool result events
-                        all_messages.append(event)
+                            timestamp=event.timestamp,
+                        )
+                    )
+                elif isinstance(event, ToolResultEvent):
+                    all_messages.append(event)
+                elif isinstance(event, ToolOutputChunkEvent):
+                    pass
 
-                    yield event
+                yield event
 
             end_time = datetime.now(timezone.utc)
             execution_time_ms = int((end_time - start_time).total_seconds() * 1000)
@@ -425,6 +452,13 @@ class AgentService:
                 execution_time_ms=execution_time_ms,
                 timestamp=datetime.now(timezone.utc).isoformat(),
             )
+        finally:
+            if thread_id:
+                from app.engine.xcode_coding_agent.shell_stream_registry import (
+                    unregister_shell_stream_queue,
+                )
+
+                unregister_shell_stream_queue(str(thread_id))
 
     async def get_agent_session(self, agent_session_id: int) -> AgentSessionResponse:
         async with get_session() as db_session:

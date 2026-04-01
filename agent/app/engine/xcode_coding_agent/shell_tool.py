@@ -39,6 +39,21 @@ def run_shell_command(command: str, working_directory: str) -> str:
         return "Shell tool is disabled on this server."
 
     allowed = settings.get_shell_allowed_roots()
+    stream_q = None
+    if settings.shell_stream_output_to_client and settings.shell_stream_queue_max_chunks > 0:
+        try:
+            from langgraph.config import get_config
+
+            tid = (get_config().get("configurable") or {}).get("thread_id")
+            if tid:
+                from app.engine.xcode_coding_agent.shell_stream_registry import (
+                    get_shell_stream_queue_for_thread,
+                )
+
+                stream_q = get_shell_stream_queue_for_thread(str(tid))
+        except RuntimeError:
+            stream_q = None
+
     try:
         logger.info(
             "shell_command_started",
@@ -54,6 +69,8 @@ def run_shell_command(command: str, working_directory: str) -> str:
             auto_install_requirements=settings.shell_auto_install_requirements,
             skip_redundant_requirements_install=settings.shell_skip_redundant_requirements_install,
             pip_install_timeout=settings.shell_pip_install_timeout_seconds,
+            stream_queue=stream_q,
+            stream_max_chunk_bytes=settings.shell_stream_max_chunk_bytes,
         )
         logger.info("shell_command_finished", cwd=working_directory)
         return result

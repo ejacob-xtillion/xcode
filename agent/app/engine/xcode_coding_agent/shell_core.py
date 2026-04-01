@@ -13,12 +13,14 @@ from __future__ import annotations
 
 import hashlib
 import os
+import queue
 import shlex
 import shutil
 import signal
 import subprocess
 import sys
 import threading
+from queue import Queue
 from typing import Final
 
 # Guardrail: avoid loading huge files into memory for fingerprinting.
@@ -77,6 +79,28 @@ def resolve_working_directory(working_directory: str, allowed_roots: list[str]) 
     raise ShellCommandError(
         f"Access denied: cwd {real_cwd!r} is not under allowed roots {real_roots!r}"
     )
+
+
+def _enqueue_shell_stream(
+    stream_q: Queue | None,
+    stream_label: str,
+    text: str,
+    max_chunk: int,
+) -> None:
+    """Push line or chunk to queue for live SSE; drop on Full. Labels: stdout | stderr."""
+    if stream_q is None or not text:
+        return
+    if max_chunk < 256:
+        max_chunk = 256
+    start = 0
+    n = len(text)
+    while start < n:
+        piece = text[start : start + max_chunk]
+        start += max_chunk
+        try:
+            stream_q.put_nowait((stream_label, piece))
+        except queue.Full:
+            return
 
 
 def truncate_output(text: str, max_bytes: int) -> str:
@@ -277,6 +301,8 @@ def run_shell_command_impl(
     skip_redundant_requirements_install: bool = True,
     pip_install_timeout: int = 300,
     python_executable: str | None = None,
+    stream_queue: Queue | None = None,
+    stream_max_chunk_bytes: int = 8192,
 ) -> str:
     """
     Parse command with shlex (POSIX), run without shell, enforce cwd and timeout.
@@ -296,6 +322,8 @@ def run_shell_command_impl(
         pip_install_timeout: Timeout for automatic requirements/sync step.
         python_executable: Interpreter for pip installs (requirements.txt path);
             defaults to ``sys.executable``.
+        stream_queue: If set, stdout/stderr lines are pushed as (stream, text) for live clients.
+        stream_max_chunk_bytes: Max characters per queued chunk (long lines are split).
 
     Returns:
         Human-readable block with exit code, cwd, command echo, and truncated output.
@@ -435,21 +463,68 @@ def run_shell_command_impl(
             shell=False,
             start_new_session=True,
         )
+    except OSError as e:
+        raise ShellCommandError(f"Failed to start process: {e}") from e
+
+    if stream_queue is not None:
+
+        def _read_pipe(pipe, label: str, acc: list[str]) -> None:
+            try:
+                for line in iter(pipe.readline, ""):
+                    acc.append(line)
+                    _enqueue_shell_stream(stream_queue, label, line, stream_max_chunk_bytes)
+            finally:
+                try:
+                    pipe.close()
+                except OSError:
+                    pass
+
+        stdout_lines: list[str] = []
+        stderr_lines: list[str] = []
+        t_out = threading.Thread(
+            target=_read_pipe,
+            args=(proc.stdout, "stdout", stdout_lines),
+            daemon=True,
+        )
+        t_err = threading.Thread(
+            target=_read_pipe,
+            args=(proc.stderr, "stderr", stderr_lines),
+            daemon=True,
+        )
+        t_out.start()
+        t_err.start()
         try:
-            out, err = proc.communicate(timeout=timeout)
+            proc.wait(timeout=timeout)
         except subprocess.TimeoutExpired:
             try:
                 os.killpg(proc.pid, signal.SIGKILL)
             except ProcessLookupError:
                 proc.kill()
-            proc.communicate(timeout=5)
+            proc.wait(timeout=5)
+            t_out.join(timeout=5)
+            t_err.join(timeout=5)
             raise ShellCommandError(
                 f"Command timed out after {timeout}s (process group killed)."
             ) from None
-    except ShellCommandError:
-        raise
-    except OSError as e:
-        raise ShellCommandError(f"Failed to start process: {e}") from e
+        t_out.join(timeout=5)
+        t_err.join(timeout=5)
+        out = "".join(stdout_lines)
+        err = "".join(stderr_lines)
+    else:
+        try:
+            try:
+                out, err = proc.communicate(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                try:
+                    os.killpg(proc.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    proc.kill()
+                proc.communicate(timeout=5)
+                raise ShellCommandError(
+                    f"Command timed out after {timeout}s (process group killed)."
+                ) from None
+        except ShellCommandError:
+            raise
 
     exit_code = proc.returncode if proc.returncode is not None else -1
     combined = ""
